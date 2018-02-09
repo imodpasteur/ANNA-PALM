@@ -29,7 +29,7 @@ pip install -r requirements-gpu.txt
 
 Two type of scripts are available, the first one is to run on simulated microtubules and nuclear pores.
 
-For example, you can train a new ANNA-PALM(cGAN) with the following command:
+For example, you can train a new ANNA-PALM with the following command:
 
 python run.py --workdir=./results/simulated_model
 
