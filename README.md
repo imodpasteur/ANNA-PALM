@@ -39,7 +39,7 @@ pip install -r requirements-gpu.txt
 
 Two type of scripts are available, the first one is to run on simulated microtubules and nuclear pores.
 
-For example, you can train a new ANNA-PALM with the following command:
+For example, you can train a new ANNA-PALM model with the following command:
 ```
 python run.py --workdir=./results/simulated_model
 ```
@@ -49,6 +49,10 @@ You can run the following command to see all the arguments.
 # for example
 python3 run.py --help
 ```
+
+## Train with your own data
+Coming Soon...
+
 
 ## Freeze trained model
 In order to use your trained model in our imagej plugin, you need to run the following script
@@ -64,4 +68,6 @@ Frozen models can be loaded with our ImageJ plugin. (TODO: how to add frozen mod
 
 * If you are using MACOS, and encountered problem with the torch package, try to upgrade to Python3.6.1, for example: by running 'conda install python 3.6.1'
 
-* For more questions, please signup our slack channel https://annapalm.slack.com
+* For more FAQs, check out: https://annapalm.pasteur.fr/#/faq .
+
+* If you can't find an answer, please [contact us](https://oeway.typeform.com/to/qyJOIy) or [add a github issue](https://github.com/imodpasteur/ANNA-PALM/issues).
