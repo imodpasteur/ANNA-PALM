@@ -22,18 +22,24 @@ The recommended way to get python3.6 is to use ANACONDA, go the website: https:/
 and download Anaconda(Python 3.6), then install it.
 
 The next step is to install the dependencies, mainly for tensorflow.
-Open a terminal, switch to the annaPALM source code folder.
-
-For a quick test running on CPU, run the following command:
+Open a terminal, switch to the ANNA-PALM source code folder.
+```bash
+git clone https://github.com/imodpasteur/ANNA-PALM
+cd ANNA-PALM
 ```
+
+For a quick test running on CPU or you don't have a cuda compatible GPU, run the following command:
+```bash
 pip install -r requirements.txt
 ```
 
 Or if you have an tensorflow compatible GPU, and you want to use GPU for training, run the following command:
-```
+```bash
 pip install -r requirements-gpu.txt
 ```
 
+## ImageJ plugin
+Besides the python code, an ImageJ plugin for applying trained model can be downloaded [here](https://s3.eu-west-2.amazonaws.com/anna-palm-model/ANNA_PALM_Process-latest.jar).
 
 ## USAGE
 
@@ -47,22 +53,25 @@ python run.py --workdir=./results/simulated_model
 You can run the following command to see all the arguments.
 ```
 # for example
-python3 run.py --help
+python run.py --help
 ```
 
 ## Train with your own data
-Coming Soon...
+Coming soon...
 
 
 ## Freeze trained model
-In order to use your trained model in our imagej plugin, you need to run the following script
+Together with ANNA-PALM python code, a ImageJ plugin is provided to 
+
+In order to use your trained model in the [imagej plugin](https://s3.eu-west-2.amazonaws.com/anna-palm-model/ANNA_PALM_Process-latest.jar), you need to first train a model, and then run the following script to get a frozen model:
 ```
 python freeze.py --workdir=./frozen_model_sim --load_dir=./results/simulated_model
 ```
  * use --load_dir to specify the directory contains your trained model
  * use --workdir to specify where you want to save the exported directory, you will find the frozen model file named "tensorflow_model.pb"
 
-Frozen models can be loaded with our ImageJ plugin. (TODO: how to add frozen model to imagej)
+Then you can copy the .pb file into ImageJ.
+(TODO: how to add frozen model to imagej)
 
 ## License
 There are two licenses for different part of the ANNA-PALM code: a [`MIT license`](https://github.com/imodpasteur/ANNA-PALM/blob/master/AnetLib/LICENSE) is applied to files inside the `AnetLib` folder. A [`Non-commercial License Agreement`](https://github.com/imodpasteur/ANNA-PALM/blob/master/license.pdf) is applied to all other files.
