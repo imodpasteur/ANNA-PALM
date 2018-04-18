@@ -64,8 +64,10 @@ python freeze.py --workdir=./frozen_model_sim --load_dir=./results/simulated_mod
 
 Frozen models can be loaded with our ImageJ plugin. (TODO: how to add frozen model to imagej)
 
-## FAQ
+## License
+There are two licenses for different part of the ANNA-PALM code: a [`MIT license`](https://github.com/imodpasteur/ANNA-PALM/blob/master/AnetLib/LICENSE) is applied to files inside the `AnetLib` folder. A [`Non-commercial License Agreement`](https://github.com/imodpasteur/ANNA-PALM/blob/master/license.pdf) is applied to all other files.
 
+## FAQ
 * If you are using MACOS, and encountered problem with the torch package, try to upgrade to Python3.6.1, for example: by running 'conda install python 3.6.1'
 
 * For more FAQs, check out: https://annapalm.pasteur.fr/#/faq .
