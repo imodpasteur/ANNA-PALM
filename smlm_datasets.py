@@ -1,5 +1,8 @@
+import random
+import os
 import numpy as np
 import scipy
+
 from AnetLib.data.image_utils import RandomRotate, CenterCropNumpy, RandomCropNumpy, PoissonSubsampling, AddGaussianPoissonNoise, GaussianBlurring, AddGaussianNoise, ElasticTransform
 from datasets import TUBULIN, NUCLEAR_PORE
 from AnetLib.data.image_utils import to_tensor
@@ -7,9 +10,9 @@ from AnetLib.data.image_utils import EnhancedCompose, Merge, Split
 from AnetLib.data.image_utils import RandomRotate, CenterCropNumpy, RandomCropNumpy
 from AnetLib.data.image_utils import NormalizeNumpy, MaxScaleNumpy
 from AnetLib.data.folder_dataset import FolderDataset
-from palm_utils import generate_image_pairs_from_csv
+from localization_utils import generate_image_pairs_from_csv, SubFolderImagesLoader
 
-DatasetTypeIDs = {'random': -1, 'tubulin': 0, 'nuclear_pore': 1, 'actin': 2, 'mitochondria': 3}
+DatasetTypeIDs = {'random': -1, 'microtubule': 0, 'nuclear_pore': 1, 'actin': 2, 'mitochondria': 3}
 
 def create_data_sources(name, opt):
     np.random.seed(opt.seed)
@@ -35,13 +38,17 @@ def create_data_sources(name, opt):
         return TransformedNuclearPore001(opt)
     elif name == 'TransformedNuclearPore001Dense':
         return TransformedNuclearPore001Dense(opt)
+
+    elif name == 'TransformedCSVImages':
+        return TransformedCSVImages(opt)
     else:
         raise Exception('unsupported dataset')
 
 
 class TransformedTubulin001():
     def __init__(self, opt):
-        self.typeID = DatasetTypeIDs['tubulin']
+        self.typeID = DatasetTypeIDs['microtubule']
+        self.tags = ['microtubule', 'simulation']
         self.iRot = RandomRotate()
         self.iMerge = Merge()
         self.iSplit = Split([0, 1], [1, 2])
@@ -118,6 +125,7 @@ class TransformedNuclearPore001(TransformedTubulin001):
     def __init__(self, opt):
         super(TransformedNuclearPore001, self).__init__(opt)
         self.typeID = DatasetTypeIDs['nuclear_pore']
+        self.tags = ['nuclear_pore', 'simulation']
     def __getitem__(self, key):
         if key == 'train':
             source_train = NUCLEAR_PORE('./datasets', train=True, download=True, transform=self.transform_train, repeat=self.repeat)
@@ -133,6 +141,233 @@ class TransformedNuclearPore001Dense(TransformedNuclearPore001):
         super(TransformedNuclearPore001Dense, self).__init__(opt)
         self.iPoisson = PoissonSubsampling(peak=['lognormal', 0.8, 1])
 
+class TransformedTubulinImages001():
+    def __init__(self, opt):
+        self.typeID = DatasetTypeIDs['microtubule']
+        train_crop_size1 = opt.fineSize * 2
+        train_crop_size2 = opt.fineSize + 200
+        train_crop_size3 = opt.fineSize
+        test_size = opt.fineSize
+
+        self.input_clip = (0, 5)
+        self.output_clip = (2, 100)
+
+        # prepare the transforms
+        self.iMerge = Merge()
+        self.iElastic = ElasticTransform(alpha=1000, sigma=40)
+        self.iSplit = Split([0, 1], [1, 2])
+        self.iRot = RandomRotate()
+        self.iRCropTrain = RandomCropNumpy(size=(train_crop_size2, train_crop_size2))
+        self.iCropFTrain = CenterCropNumpy(size=(train_crop_size1, train_crop_size1))
+        self.iCropTrain = CenterCropNumpy(size=(train_crop_size3, train_crop_size3))
+        self.iCropTest = CenterCropNumpy(size=(test_size, test_size))
+        self.ptrain = './datasets/wei-tubulin-ctrl-20170520-images/train'
+        self.ptest = './datasets/wei-tubulin-ctrl-20170520-images/test'
+        self.dim_ordering = opt.dim_ordering
+        self.opt = opt
+        self.repeat = 30
+
+    def __getitem__(self, key):
+        if key == 'train':
+            imgfolderLoader = SubFolderImagesLoader(extension='.png')
+            source_train = FolderDataset(self.ptrain,
+                              channels = {'image': {'filter':'*.csv', 'loader': imgfolderLoader} },
+                             transform = self.transform_train,
+                             recursive=False,
+                             repeat=self.repeat)
+            return source_train
+        elif key == 'test':
+            imgfolderLoader = SubFolderImagesLoader(extension='.png')
+            source_test = FolderDataset(self.ptest,
+                              channels = {'image': {'filter':'*.csv', 'loader': imgfolderLoader} },
+                             transform = self.transform_test,
+                             recursive=False,
+                             repeat=self.repeat)
+            return source_test
+        else:
+            raise Exception('only train and test are supported.')
+
+    def transform_train(self, imageAB):
+        As, Bs, path = imageAB['image']['A'], imageAB['image']['B'], imageAB['image.path']
+        histin, histout = random.choice(As).astype('float32'), random.choice(Bs).astype('float32')
+        histin = np.expand_dims(histin, axis=2) if histin.ndim == 2 else histin
+        histout = np.expand_dims(histout, axis=2) if histout.ndim == 2 else histout
+        img = self.iMerge([histin, histout])
+        img = self.iRCropTrain(img)
+        img = self.iRot(img)
+        img = self.iElastic(img)
+        histin, histout = self.iSplit(img)
+        output_clip = self.output_clip
+        histout =  (np.clip(histout, output_clip[0]/2, output_clip[1]*2)-output_clip[0]) / (output_clip[1] - output_clip[0])
+        imgin, imgout = self.iCropTrain(histin), self.iCropTrain(histout)
+        if self.dim_ordering == 'channels_first':
+            imgin, imgout = imgin.transpose((2, 0, 1)), imgout.transpose((2, 0, 1))
+        else:
+            assert self.dim_ordering == 'channels_last'
+        return {'A': imgin, 'B': imgout, 'path': path}
+
+    def transform_test(self, imageAB):
+        As, Bs, path = imageAB['image']['A'], imageAB['image']['B'], imageAB['image.path']
+        histin, histout = random.choice(As).astype('float32'), random.choice(Bs).astype('float32')
+        histin = np.expand_dims(histin, axis=2) if histin.ndim == 2 else histin
+        histout = np.expand_dims(histout, axis=2) if histout.ndim == 2 else histout
+        output_clip = self.output_clip
+        histout =  (np.clip(histout, output_clip[0]/2, output_clip[1]*2)-output_clip[0]) / (output_clip[1] - output_clip[0])
+        imgin, imgout = self.iCropTest(histin), self.iCropTest(histout)
+        if self.dim_ordering == 'channels_first':
+            imgin, imgout = imgin.transpose((2, 0, 1)), imgout.transpose((2, 0, 1))
+        else:
+            assert self.dim_ordering == 'channels_last'
+        return {'A': imgin, 'B': imgout, 'path': path}
+
+class TransformedTubulinImages004(TransformedTubulinImages001):
+    '''
+    use max scale and normalization
+    filter out blank regions
+    '''
+    def __init__(self, opt):
+        super(TransformedTubulinImages004, self).__init__(opt)
+        self.iBG = lambda x: x # AddGaussianPoissonNoise(sigma=25, peak=['lognormal', -2.5, 0.8])
+
+    def transform_train(self, imageAB):
+        As, Bs, path = imageAB['image']['A'], imageAB['image']['B'], imageAB['image.path']
+        histin, histout = random.choice(As).astype('float32'), random.choice(Bs).astype('float32')
+        histin = np.expand_dims(histin, axis=2) if histin.ndim == 2 else histin
+        histout = np.expand_dims(histout, axis=2) if histout.ndim == 2 else histout
+        img = self.iMerge([histin, histout])
+
+        # find a non-black region
+        retry = 0
+        while retry<5:
+            img_crop = self.iRCropTrain(img)
+            if img_crop[:, :, 0].sum()>800+np.random.random()*800:
+                break
+            retry +=1
+        if retry>=5:
+            print('X', end='')
+
+        img = img_crop
+        img = self.iRot(img)
+        img = self.iElastic(img)
+        histin, histout = self.iSplit(img)
+        histin, histout = self.iBG(histin), histout
+        imgin, imgout = self.iCropTrain(histin), self.iCropTrain(histout)
+        if self.dim_ordering == 'channels_first':
+            imgin, imgout = imgin.transpose((2, 0, 1)), imgout.transpose((2, 0, 1))
+        else:
+            assert self.dim_ordering == 'channels_last'
+        return {'A': imgin, 'B': imgout, 'path': path}
+
+    def transform_test(self, imageAB):
+        As, Bs, path = imageAB['image']['A'], imageAB['image']['B'], imageAB['image.path']
+        histin, histout = random.choice(As).astype('float32'), random.choice(Bs).astype('float32')
+        histin = np.expand_dims(histin, axis=2) if histin.ndim == 2 else histin
+        histout = np.expand_dims(histout, axis=2) if histout.ndim == 2 else histout
+        imgin, imgout = self.iCropTest(histin), self.iCropTest(histout)
+        if self.dim_ordering == 'channels_first':
+            imgin, imgout = imgin.transpose((2, 0, 1)), imgout.transpose((2, 0, 1))
+        else:
+            assert self.dim_ordering == 'channels_last'
+        return {'A': imgin, 'B': imgout, 'path': path}
+
+class NoiseCollection001(TransformedTubulinImages004):
+    def __init__(self, opt, force_generate=False):
+        super(NoiseCollection001, self).__init__(opt)
+        self.typeID = DatasetTypeIDs['random']
+        self.ptrain = './datasets/noise-collection_v0.1.0/train'
+        self.ptest = './datasets/noise-collection_v0.1.0/test'
+
+    def transform_train(self, imageAB):
+        As, Bs, path = imageAB['image']['A'], imageAB['image']['B'], imageAB['image.path']
+        histin, histout = random.choice(As).astype('float32'), random.choice(Bs).astype('float32')
+        histin = np.expand_dims(histin, axis=2) if histin.ndim == 2 else histin
+        histout = np.expand_dims(histout, axis=2) if histout.ndim == 2 else histout
+        img = self.iMerge([histin, histout])
+        img_crop = self.iRCropTrain(img)
+        img = img_crop
+        img = self.iRot(img)
+        img = self.iElastic(img)
+        img = self.iCropTrain(img)
+        imgin, imgout = self.iSplit(img)
+        if self.dim_ordering == 'channels_first':
+            imgin, imgout = imgin.transpose((2, 0, 1)), imgout.transpose((2, 0, 1))
+        else:
+            assert self.dim_ordering == 'channels_last'
+        return {'A': imgin, 'B': imgout, 'path': path}
+
+class TransformedCSVImages(TransformedTubulinImages004):
+    def __init__(self, opt, force_generate=False):
+        super(TransformedCSVImages, self).__init__(opt)
+        self.wfBlur = GaussianBlurring(sigma=opt.lr_sigma)
+        self.ptrain = os.path.join(opt.workdir, '__images__', 'train')
+        self.ptest = os.path.join(opt.workdir, '__images__', 'test')
+        self.iSplit = Split([0, 2], [2, 3])
+        self.test_count = 0
+        if not os.path.exists(self.ptrain) or force_generate:
+            generate_image_pairs_from_csv(os.path.join(opt.workdir, 'train'),
+                                    self.ptrain,
+                                    A_frame=['uniform', 200, 500], B_frame=0.95,
+                                    A_frame_limit=(0, 0.5),
+                                    B_frame_limit=(2000, 1.0),
+                                    image_per_file=30,
+                                    target_size=(2560, 2560))
+
+        if not os.path.exists(self.ptest) or force_generate:
+            if not os.path.exists(os.path.join(opt.workdir, 'test')):
+                return
+            aframes = list(np.logspace(-3, np.log(1.0), 32)*60000) + [0,]
+            generate_image_pairs_from_csv(os.path.join(opt.workdir, 'test'),
+                                    self.ptest,
+                                    A_frame=aframes, B_frame=1.0,
+                                    A_frame_limit=(0, 1.0),
+                                    B_frame_limit=(0, 1.0),
+                                    image_per_file=len(aframes),
+                                    target_size=(2560, 2560),
+                                    zero_offset=True)
+
+    def transform_train(self, imageAB):
+        As, Bs, LRs, path = imageAB['image']['A'], imageAB['image']['B'], imageAB['image']['LR'], imageAB['image.path']
+        histin, histout = random.choice(As).astype('float32'), random.choice(Bs).astype('float32')
+        if len(LRs) == 0:
+            lrin = np.zeros_like(histin)
+        else:
+            lrin = random.choice(LRs).astype('float32')
+        img = self.iMerge([histin, lrin, histout])
+        img = self.iRCropTrain(img)
+        img = self.iRot(img)
+        img = self.iElastic(img)
+        histin, histout = self.iSplit(img)
+        output_clip = self.output_clip
+        histout =  (np.clip(histout, output_clip[0]/2, output_clip[1]*2)-output_clip[0]) / (output_clip[1] - output_clip[0])
+        imgin, imgout = self.iCropTrain(histin), self.iCropTrain(histout)
+        if self.dim_ordering == 'channels_first':
+            imgin, imgout = imgin.transpose((2, 0, 1)), imgout.transpose((2, 0, 1))
+        else:
+            assert self.dim_ordering == 'channels_last'
+        return {'A': imgin, 'B': imgout, 'path': path}
+
+    def transform_test(self, imageAB):
+        As, Bs, LRs, path = imageAB['image']['A'], imageAB['image']['B'], imageAB['image']['LR'], imageAB['image.path']
+        pathAs = imageAB['image']['pathA']
+        if self.test_count >= len(As):
+            self.test_count = 0
+
+        path = path + '_' + os.path.split(pathAs[self.test_count%len(As)])[1]
+        histin, histout= As[self.test_count%len(As)].astype('float32'), Bs[self.test_count%len(Bs)].astype('float32')
+        self.test_count += 1
+        if len(LRs) == 0:
+            lrin = np.zeros_like(histin)
+        else:
+            lrin = random.choice(LRs).astype('float32')
+        histin = np.concatenate([histin, lrin], axis=2)
+        output_clip = self.output_clip
+        histout =  (np.clip(histout, output_clip[0]/2, output_clip[1]*2)-output_clip[0]) / (output_clip[1] - output_clip[0])
+        imgin, imgout = self.iCropTest(histin), self.iCropTest(histout)
+        if self.dim_ordering == 'channels_first':
+            imgin, imgout = imgin.transpose((2, 0, 1)), imgout.transpose((2, 0, 1))
+        else:
+            assert self.dim_ordering == 'channels_last'
+        return {'A': imgin, 'B': imgout, 'path': path}
 
 class CompositeRandomDataset():
     def __init__(self, datasets, opt, group='test'):
@@ -154,6 +389,7 @@ class CompositeRandomDataset():
             self.probs_acc.append(pc)
         self.probs_max = self.probs_acc[-1]
         self.data_type = None
+        self.tags = None
         self.__fpp = None
         self.__repeat = False
         self.__out = None
@@ -182,6 +418,9 @@ class CompositeRandomDataset():
         if self.opt.control_classes is not None:
             assert typeID < self.opt.control_classes, 'typeID must be smaller than the control classes number'
         self.data_type = typeID
+
+    def set_tags(self, tags=None):
+        self.tags = tags
 
     def set_fpp(self, fpp=None):
         self.__fpp = fpp
@@ -251,6 +490,10 @@ class CompositeRandomDataset():
                 # else:
                 #     out['A'] = np.concatenate([out['A'], np.zeros_like(out['A'][:, :, 0:1]) + typeID], axis=2)
                 out['control'].append(typeID)
+            if 'add_tags_control' in self.opt and self.opt.add_tags_control:
+                tags = self.tags if self.tags is not None else ds.tags
+                out['tags'] = tags
+
             # add false positive prevention channel
             if 'add_fpp_control' in self.opt and self.opt.add_fpp_control:
                 rw = self.__fpp if self.__fpp is not None else np.random.randint(0, 2)
@@ -270,6 +513,8 @@ class CompositeRandomDataset():
                 out['channel_mask'] = _mask
             else:
                 out['channel_mask'] = self.__channel_mask
+            if len(out['control']) < self.opt.control_nc:
+                out['control'] = out['control'] + [0]*(self.opt.control_nc-len(out['control']))
             assert self.opt.control_nc is None or self.opt.control_nc==0 or len(out['control']) == self.opt.control_nc
 
         if self.__callback is not None:
