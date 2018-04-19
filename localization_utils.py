@@ -1,5 +1,7 @@
 import numpy as np
 import os
+from shutil import copyfile
+import fnmatch
 import os.path
 import scipy
 import scipy.ndimage
@@ -407,6 +409,13 @@ def generate_image_pairs_from_csv(csv_folder, output_dir, image_per_file=10, A_f
             imB.save(os.path.join(fpath, 'B_{}_{}.png'.format('all', str(outf_range))))
         else:
             imB.save(os.path.join(fpath, 'B_{}_{}.png'.format(i%image_per_file, str(outf_range))))
+
+        lr_path = p.replace('.csv', '.png')
+        lr_target_path = os.path.join(fpath, 'LR_'+ name.replace('.csv', '.png'))
+        if os.path.exists(lr_path) and not os.path.exists(lr_target_path):
+            copyfile(lr_path, lr_target_path)
+
+
     print('done')
 
 def generate_images_from_csv(csv_folder, output_dir, frame=1.0, image_per_file=1, file_filter='*.csv', zero_offset=False,
