@@ -38,9 +38,10 @@ def create_data_sources(name, opt):
         return TransformedNuclearPore001(opt)
     elif name == 'TransformedNuclearPore001Dense':
         return TransformedNuclearPore001Dense(opt)
-
     elif name == 'TransformedCSVImages':
         return TransformedCSVImages(opt)
+    elif name == 'TransformedGenericImages':
+        return TransformedGenericImages(opt)
     else:
         raise Exception('unsupported dataset')
 
@@ -298,7 +299,6 @@ class NoiseCollection001(TransformedTubulinImages004):
 class TransformedCSVImages(TransformedTubulinImages004):
     def __init__(self, opt, force_generate=False):
         super(TransformedCSVImages, self).__init__(opt)
-        self.wfBlur = GaussianBlurring(sigma=opt.lr_sigma)
         self.ptrain = os.path.join(opt.workdir, '__images__', 'train')
         self.ptest = os.path.join(opt.workdir, '__images__', 'test')
         self.iSplit = Split([0, 2], [2, 3])
@@ -368,6 +368,15 @@ class TransformedCSVImages(TransformedTubulinImages004):
         else:
             assert self.dim_ordering == 'channels_last'
         return {'A': imgin, 'B': imgout, 'path': path}
+
+
+class TransformedGenericImages(TransformedCSVImages):
+    def __init__(self, opt, force_generate=False):
+        super(TransformedCSVImages, self).__init__(opt)
+        self.ptrain = os.path.join(opt.workdir, 'train')
+        self.ptest = os.path.join(opt.workdir, 'test')
+        self.iSplit = Split([0, 2], [2, 3])
+        self.test_count = 0
 
 class CompositeRandomDataset():
     def __init__(self, datasets, opt, group='test'):

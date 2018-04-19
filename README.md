@@ -60,9 +60,9 @@ python run.py --help
 
 ## Train with localization tables
  * In order to train an ANNA-PALM model with your own data, you need to prepare your localization tables. Currently, you need to use the csv format produced with [ThunderSTORM](https://github.com/zitmen/thunderstorm). If you don't have any data for now, you can [download](https://www.dropbox.com/sh/lwl1l3tdtzdr1re/AACmm8hRYszNVXwI0gqIeaoLa?dl=0) our microtubule data we used in the paper.
- * Now create a folder as your working directory(for example `training_workdir_exp1`) , inside your `training_workdir_exp1`, you need to create a folder named `train`.
+ * Create a folder as your working directory(for example `training_workdir_exp1`) , inside your `training_workdir_exp1`, you need to create a folder named `train`.
  * Then, place all your csv files into the `train` folder. Optionally, you could reserve one or two files for validation purpose. In such case, you can create another folder named `test` and place your validation csv files into it. If you have widefield images, you need to export them as .png images (16bit or 8bit grayscale), and then rename then such they will have the same name as the corresponding csv file except the .png extension.
- * Now run the following script to train on your data:
+ * Now run the following command to train on your data:
 
 ```bash
 python run_csv.py --workdir=./training_workdir_exp1
@@ -72,7 +72,17 @@ With the above code, it will first render histogram images with a subset of the 
 
 When it's done, the training will start. It will produce some interim images in the `outputs` folder which you can used to check whether the training goes well. The model will be saved into `__model__` after a certain epochs of training. Please also notice that If you are running on a cpu, it can be very slow.
 
-### Monitor your training
+## Train with other type of images
+You can also use ANNA-PALM to work with other type of images which are not localization table. In such case, follow these steps:
+  * Create a folder as your working directory(for example `training_workdir_exp2`) , inside your `training_workdir_exp2`, you need to create a folder named `train` and `test` (optional).
+  * Then, place all your images into the `train` folder, optionally place a few images into `test`.
+
+  * Now run the following command as in the above example:
+  ```bash
+  python run_img.py --workdir=./training_workdir_exp2
+  ```
+
+## Monitor your training
 If you want to monitor the training progress, you should use the tensorboard interface which provides plots in the browser. In order to launch that, type the following command:
 ```bash
 cd training_workdir_exp1/__model__
