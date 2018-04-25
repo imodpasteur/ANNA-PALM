@@ -1,11 +1,11 @@
 import os, sys
 import tensorflow as tf
-from AnetLib.options.train_options import TrainOptions
+from AnetLib.options.train_options import Options
 from AnetLib.models.models import create_model
 from smlm_datasets import create_data_sources
 
 default_workdir = './output/' + os.path.basename(sys.argv[0])
-opt = TrainOptions().parse()
+opt = Options().parse()
 opt.fineSize = 512
 opt.batchSize = 1  # batchSize = 1
 opt.model = 'a_net_tensorflow'
@@ -32,7 +32,7 @@ d = sources['train']
 # noise_source = create_data_sources('NoiseCollection001', opt)['train']
 # d.set_addtional_source(noise_source)
 model = create_model(opt)
-model.train(d, verbose=1, max_epoch=1000)
+model.train(d, verbose=1, max_epochs=1000)
 
 opt.phase = 'test'
 opt.fineSize = 1024

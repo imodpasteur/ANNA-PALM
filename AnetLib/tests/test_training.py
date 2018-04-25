@@ -1,12 +1,12 @@
 import os
 import sys
 import tensorflow as tf
-from AnetLib.options.train_options import TrainOptions
+from AnetLib.options.train_options import Options
 from AnetLib.models.models import create_model
 from smlm_datasets import create_data_sources
 
 def test_training():
-    opt = TrainOptions().parse(['--workdir=./__test_tmp__/'])
+    opt = Options().parse(['--workdir=./__test_tmp__/'])
     opt.model = 'a_net_tensorflow'
     opt.fineSize = 256
     opt.batchSize = 1

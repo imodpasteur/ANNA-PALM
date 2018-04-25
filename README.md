@@ -114,6 +114,15 @@ Then you can copy the .pb file into ImageJ.
 There are two licenses for different part of the ANNA-PALM code: a [`MIT license`](https://github.com/imodpasteur/ANNA-PALM/blob/master/AnetLib/LICENSE) is applied to files inside the `AnetLib` folder. A [`Non-commercial License Agreement`](https://github.com/imodpasteur/ANNA-PALM/blob/master/license.pdf) is applied to all other files.
 
 ## FAQ
+* How to train faster?
+You will need tensorflow compatible GPU, and setup the corresponding drivers and pacakges.
+
+The other option is to reduce the size of the current neural network, for example add the following options in your script:
+```
+opt.ngf = 16 # this is the base number of filters for the generator, default value: 64
+opt.ndf = 16 # this is the base number of filters for the discriminator, default value: 64
+```
+
 * If you are using MACOS, and encountered problem with the torch package, try to upgrade to Python3.6.1, for example: by running 'conda install python 3.6.1'
 
 * For more FAQs, check out: https://annapalm.pasteur.fr/#/faq .

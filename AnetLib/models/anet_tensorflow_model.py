@@ -332,7 +332,7 @@ class AnetModel():
         print("#samples = {}".format(len(data_source_train)))
 
         if max_epochs is not None:
-            max_steps = max_epoch*steps_per_epoch
+            max_steps = max_epochs*steps_per_epoch
         if max_steps is None:
             max_steps = 2**32
         # start the data queue

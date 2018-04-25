@@ -14,12 +14,12 @@ python3 run.py --workdir=./results/simulated_model
 import os
 import sys
 import tensorflow as tf
-from AnetLib.options.train_options import TrainOptions
+from AnetLib.options.train_options import Options
 from AnetLib.models.models import create_model
 from smlm_datasets import create_data_sources
 
 default_workdir = './workdir'
-opt = TrainOptions().parse()
+opt = Options().parse()
 opt.model = 'a_net_tensorflow'
 opt.fineSize = 512
 opt.batchSize = 1
@@ -43,7 +43,7 @@ opt.ndf = 2
 sources = create_data_sources(['TransformedTubulin001NB'], opt)
 d = sources['train']
 model = create_model(opt)
-model.train(d, verbose=1, max_epoch=1000)
+model.train(d, verbose=1, max_epochs=1000)
 
 # training done
 opt.phase = 'test'
