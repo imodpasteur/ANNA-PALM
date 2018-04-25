@@ -12,9 +12,10 @@ def check_integrity(fpath, md5c):
     if not os.path.isfile(fpath):
         return False
     md5 = hashlib.md5(open(fpath, 'rb').read()).hexdigest()
-    print('file md5: ' + md5)
     if md5 != md5c:
+        print('intergrity check failed: md5='+ md5)
         return False
+    print('intergrity check passed: md5='+ md5)
     return True
 
 
@@ -122,22 +123,3 @@ class NpzDataset():
         self.y_mean = self.y_train.mean(axis=(0,1,2))
         self.y_std = self.y_train.std(axis=(0,1,2))
         return self.X_mean, self.X_std, self.y_mean, self.y_std
-
-def calculate_mean_std(data_source, count=1000, label='A'):
-    '''
-    from data.datasets import calculate_mean_std
-    mean, std = calculate_mean_std(source_train, count=200)
-    '''
-    xList = []
-    for i, d in enumerate(data_source):
-        xList.append(d[label])
-        if i>count:
-            break
-    if type(xList[0]) is np.ndarray:
-        arr = np.stack(xList)
-        return arr.mean(axis=(0,1, 2)), arr.std(axis=(0,1, 2))
-    else:
-        import torch
-        trr = torch.stack(xList)
-        trr = trr.transpose(1, 3).contiguous()
-        return trr.view(-1, trr.size(3)).mean(dim=0), trr.view(-1, trr.size(3)).std(dim=0)

@@ -24,8 +24,8 @@ CTRL_CHANNEL_POS = 1
 Model = collections.namedtuple("Model", "type, outputs, targets, uncertainty, predict_real, predict_fake, inputs, lr_inputs, lr_predict_real, lr_predict_fake, squirrel_error_map, squirrel_discrim_loss, squirrel_discrim_grads_and_vars, discrim_loss, discrim_grads_and_vars, gen_loss_GAN, gen_loss, gen_loss_L1, gen_loss_L2, gen_loss_SSIM, gen_loss_squirrel, losses, gen_grads_and_vars, squirrel_discrim_train, train")
 
 def tf_scale(image, range_lim=1):
-    mn = tf.reduce_min(image, axis=(0, 1, 2), keep_dims=True)
-    mx = tf.reduce_max(image, axis=(0, 1, 2), keep_dims=True)
+    mn = tf.reduce_min(image, axis=(0, 1, 2), keepdims=True)
+    mx = tf.reduce_max(image, axis=(0, 1, 2), keepdims=True)
     return (image - mn) / tf.maximum(range_lim, (mx - mn))
 
 def preprocess(images, mode='min_max[0,1]', range_lim=1.0):
@@ -812,7 +812,7 @@ def create_unet_model(inputs, targets, controls, channel_masks, ngf=64, ndf=64, 
         _losses.append(squirrel_discrim_loss)
     update_losses = ema.apply(list(set(_losses)))
 
-    global_step = tf.contrib.framework.get_or_create_global_step() # tf.train.get_or_create_global_step()
+    global_step = tf.train.get_or_create_global_step()
     incr_global_step = tf.assign(global_step, global_step+1)
 
     return Model(
@@ -1042,7 +1042,7 @@ def create_pix2pix_model(inputs, targets, controls, channel_masks, ngf=64, ndf=6
         _losses.append(squirrel_discrim_loss)
     update_losses = ema.apply(list(set(_losses)))
 
-    global_step = tf.contrib.framework.get_or_create_global_step() # tf.train.get_or_create_global_step()
+    global_step = tf.train.get_or_create_global_step()
     incr_global_step = tf.assign(global_step, global_step+1)
 
     return Model(
@@ -1128,6 +1128,7 @@ def setup_data_loader(data_source, enqueue_data, shuffle=True, batch_size=1, inp
                         break
                     enqueue_data(curr_path, curr_input, curr_target, curr_control, curr_channel_mask)
                     print('.', end='')
+                    sys.stdout.flush()
 
                 if stop_queue_event.is_set():
                     break

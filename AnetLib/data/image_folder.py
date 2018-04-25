@@ -4,9 +4,6 @@
 # Modified the original code so that it also loads images from the current
 # directory as well as the subdirectories
 ###############################################################################
-
-import torch.utils.data as data
-
 from PIL import Image
 import os
 import os.path
@@ -38,7 +35,7 @@ def default_loader(path):
     return Image.open(path).convert('RGB')
 
 
-class ImageFolder(data.Dataset):
+class ImageFolder():
 
     def __init__(self, root, transform=None, return_paths=False,
                  loader=default_loader):

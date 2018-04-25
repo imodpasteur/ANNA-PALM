@@ -14,9 +14,8 @@ ANNA-PALM has the following dependencies:
  * matplotlib
  * scikit-image
  * tensorflow==1.1.0
- * pytorch==0.2.0.post3
- * torchvision
  * imreg_dft
+ * pytest
 
 The recommended way to get python3.6 is to use ANACONDA, go the website: https://www.continuum.io/downloads ,
 and download Anaconda(Python 3.6), then install it.
@@ -37,6 +36,13 @@ Or if you have an tensorflow compatible GPU, and you want to use GPU for trainin
 ```bash
 pip install -r requirements-gpu.txt
 ```
+
+To test your installation, you could run the following code:
+```
+cd ANNA-PALM
+python run.py --workdir=./tmp_test
+```
+Once it starts without any error, you can terminate it with CTRL-C, otherwise, it will take a long time to actually finish the training.
 
 ## ImageJ plugin
 Besides the python code, an ImageJ plugin for applying trained model can be downloaded [here](https://s3.eu-west-2.amazonaws.com/anna-palm-model/ANNA_PALM_Process-latest.jar).

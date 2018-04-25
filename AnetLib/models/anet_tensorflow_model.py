@@ -2,19 +2,16 @@ import os
 import sys
 import tensorflow as tf
 import numpy as np
-from .base_model import BaseModel
 from . import networks_tensorflow as networks
-from . import networks_tensorflow_legacy as networks_legacy
 
 import json
 import time
 import math
 import random
-from AnetLib.data.flex_data_loader import CreateDataLoader
 from AnetLib.data.image_utils import GaussianBlurring
 from AnetLib.data.normalization import get_norm
 
-class AnetModel(BaseModel):
+class AnetModel():
     def name(self):
         return 'A-NET Model'
 
@@ -61,19 +58,13 @@ class AnetModel(BaseModel):
             self.load_config('latest')
 
         tf.reset_default_graph()
-
-        if 'legacy' in opt.model:
-            model = networks_legacy.build_network(opt.model.replace('_tensorflow', ''), opt.fineSize, opt.input_nc, opt.output_nc, opt.batchSize,
-                                                  use_resize_conv=opt.use_resize_conv, gan_weight=opt.lambda_G, l1_weight=opt.lambda_A,
-                                                  lr=opt.lr, beta1=opt.beta1, norm_A=self.opt.norm_A, norm_B=self.opt.norm_B)
-        else:
-            model = networks.build_network(opt.model.replace('_tensorflow', ''), opt.fineSize, opt.input_nc, opt.output_nc, opt.batchSize,
-                                           use_resize_conv=opt.use_resize_conv, gan_weight=opt.lambda_G, l1_weight=opt.lambda_A,
-                                           lr=opt.lr, beta1=opt.beta1, lambda_tv=opt.lambda_tv,
-                                           control_nc=opt.control_nc, control_classes=opt.control_classes,
-                                           lr_nc=opt.lr_nc, lr_scale=opt.lr_scale, squirrel_weight=opt.lambda_LR,
-                                           norm_A=self.opt.norm_A, norm_B=self.opt.norm_B, norm_LR=self.opt.norm_LR,
-                                           use_gaussd=opt.use_gaussd, lr_loss_mode=self.opt.lr_loss_mode, use_queue=not opt.no_queue)
+        model = networks.build_network(opt.model.replace('_tensorflow', ''), opt.fineSize, opt.input_nc, opt.output_nc, opt.batchSize,
+                                       use_resize_conv=opt.use_resize_conv, gan_weight=opt.lambda_G, l1_weight=opt.lambda_A,
+                                       lr=opt.lr, beta1=opt.beta1, lambda_tv=opt.lambda_tv,
+                                       control_nc=opt.control_nc, control_classes=opt.control_classes,
+                                       lr_nc=opt.lr_nc, lr_scale=opt.lr_scale, squirrel_weight=opt.lambda_LR,
+                                       norm_A=self.opt.norm_A, norm_B=self.opt.norm_B, norm_LR=self.opt.norm_LR,
+                                       use_gaussd=opt.use_gaussd, lr_loss_mode=self.opt.lr_loss_mode, use_queue=not opt.no_queue)
         self.model, queue_funcs, self.display_fetches, losses, self.summary_merged = model
         enqueue_data, close_queue = queue_funcs
         self.loss_fetches, self.averaged_loss_fetches = losses
@@ -336,9 +327,6 @@ class AnetModel(BaseModel):
         train_writer = tf.summary.FileWriter(self.opt.checkpoints_dir, self.sess.graph)
 
         opt = self.opt
-        # data_loader = CreateDataLoader(data_source_train, self.opt, cached=cached, transform=transform, verbose=verbose)
-        # dataset = data_loader.load_data()
-        # dataset_size = len(data_loader)
         queue_start, queue_stop = networks.setup_data_loader(data_source_train, self.enqueue_data, shuffle=True, control_nc=self.opt.control_nc, use_mixup=self.opt.use_mixup, seed=self.opt.seed)
         steps_per_epoch = int(math.ceil(len(data_source_train) / opt.batchSize))
         print("#samples = {}".format(len(data_source_train)))

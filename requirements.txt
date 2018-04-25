@@ -4,9 +4,5 @@ scipy
 matplotlib
 scikit-image
 tensorflow>=1.4.0	# CPU Version of TensorFlow.
-# tensorflow-gpu>=1.4.0	# GPU version of TensorFlow.
-http://download.pytorch.org/whl/cu80/torch-0.2.0.post3-cp36-cp36m-manylinux1_x86_64.whl ; sys_platform == "linux"
-http://download.pytorch.org/whl/cu80/torch-0.2.0.post3-cp36-cp36m-manylinux1_x86_64.whl ; sys_platform == "linux2"
-http://download.pytorch.org/whl/torch-0.2.0.post3-cp36-cp36m-macosx_10_7_x86_64.whl ; sys_platform == "darwin"
-torchvision
 imreg_dft
+pytest

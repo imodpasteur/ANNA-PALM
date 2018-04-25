@@ -5,7 +5,6 @@ import scipy
 
 from AnetLib.data.image_utils import RandomRotate, CenterCropNumpy, RandomCropNumpy, PoissonSubsampling, AddGaussianPoissonNoise, GaussianBlurring, AddGaussianNoise, ElasticTransform
 from datasets import TUBULIN, NUCLEAR_PORE
-from AnetLib.data.image_utils import to_tensor
 from AnetLib.data.image_utils import EnhancedCompose, Merge, Split
 from AnetLib.data.image_utils import RandomRotate, CenterCropNumpy, RandomCropNumpy
 from AnetLib.data.image_utils import NormalizeNumpy, MaxScaleNumpy

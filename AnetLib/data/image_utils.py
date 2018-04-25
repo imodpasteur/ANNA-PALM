@@ -21,12 +21,6 @@ def center_crop(x, center_crop_size):
     return x[:, centerh - halfh:centerh + halfh, centerw - halfw:centerw + halfw]
 
 
-def to_tensor(x):
-    import torch
-    x = x.transpose((2, 0, 1))
-    return torch.from_numpy(x).float()
-
-
 def to_numpy(x):
     x = x.numpy()
     return x.transpose((1, 2, 0))

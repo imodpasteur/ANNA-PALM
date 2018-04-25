@@ -21,13 +21,6 @@ def create_model(opt):
             assert(opt.dataset_mode == 'aligned')
         from .anet_tensorflow_model import AnetModel
         model = AnetModel()
-    elif opt.model == 'one_direction_test':
-        from .one_direction_test_model import OneDirectionTestModel
-        model = OneDirectionTestModel()
-    elif opt.model == 'test':
-        assert(opt.dataset_mode == 'single')
-        from .test_model import TestModel
-        model = TestModel()
     else:
         raise ValueError("Model [%s] not recognized." % opt.model)
     model.initialize(opt)
