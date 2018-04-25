@@ -2,12 +2,13 @@ import os
 import sys
 import tensorflow as tf
 import numpy as np
-from . import networks_tensorflow as networks
-
+from PIL import Image
 import json
 import time
 import math
 import random
+
+from . import networks_tensorflow as networks
 from AnetLib.data.image_utils import GaussianBlurring
 from AnetLib.data.normalization import get_norm
 
