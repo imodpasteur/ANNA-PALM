@@ -13,9 +13,9 @@ def check_integrity(fpath, md5c):
         return False
     md5 = hashlib.md5(open(fpath, 'rb').read()).hexdigest()
     if md5 != md5c:
-        print('intergrity check failed: md5='+ md5)
+        print('integrity check failed: md5='+ md5)
         return False
-    print('intergrity check passed: md5='+ md5)
+    print('integrity check passed: md5='+ md5)
     return True
 
 

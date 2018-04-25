@@ -60,7 +60,7 @@ class AnetModel():
         tf.reset_default_graph()
         model = networks.build_network(opt.model.replace('_tensorflow', ''), opt.fineSize, opt.input_nc, opt.output_nc, opt.batchSize,
                                        use_resize_conv=opt.use_resize_conv, gan_weight=opt.lambda_G, l1_weight=opt.lambda_A,
-                                       lr=opt.lr, beta1=opt.beta1, lambda_tv=opt.lambda_tv,
+                                       lr=opt.lr, beta1=opt.beta1, lambda_tv=opt.lambda_tv, ngf=opt.ngf, ndf=opt.ndf,
                                        control_nc=opt.control_nc, control_classes=opt.control_classes,
                                        lr_nc=opt.lr_nc, lr_scale=opt.lr_scale, squirrel_weight=opt.lambda_LR,
                                        norm_A=self.opt.norm_A, norm_B=self.opt.norm_B, norm_LR=self.opt.norm_LR,
@@ -323,7 +323,7 @@ class AnetModel():
             if k in self.averaged_loss_fetches:
                 self._current_report[k] = v
 
-    def train(self, data_source_train, data_source_test=None, epoch_callback=None, step_callback=None, transform=None, cached=True, max_epoch=None, verbose=1):
+    def train(self, data_source_train, data_source_test=None, epoch_callback=None, step_callback=None, transform=None, cached=True, max_epochs=None, max_steps=None, verbose=1):
         train_writer = tf.summary.FileWriter(self.opt.checkpoints_dir, self.sess.graph)
 
         opt = self.opt
@@ -331,9 +331,9 @@ class AnetModel():
         steps_per_epoch = int(math.ceil(len(data_source_train) / opt.batchSize))
         print("#samples = {}".format(len(data_source_train)))
 
-        if max_epoch is not None:
+        if max_epochs is not None:
             max_steps = max_epoch*steps_per_epoch
-        else:
+        if max_steps is None:
             max_steps = 2**32
         # start the data queue
         queue_start(self.sess, callback=self.stop_coord)
@@ -417,7 +417,7 @@ class AnetModel():
         train_writer.close()
         queue_stop()
 
-    def predict(self, data_source, dropout=0, cached=False, label=None, step_callback=None, repeat_callback=None, verbose=1):
+    def predict(self, data_source, dropout=0, cached=False, label=None, step_callback=None, repeat_callback=None, max_steps=None, verbose=1):
         repeat = dropout
         if dropout == 0:
             self.switch_dropout(False)
@@ -433,7 +433,8 @@ class AnetModel():
         steps_per_epoch = int(math.ceil(len(data_source) / self.opt.batchSize))
         self._current_visuals = {}
 
-        max_steps = 2**32
+        if max_steps is None:
+            max_steps = 2**32
         # start the data queue
         queue_start(self.sess, callback=self.stop_coord)
 
