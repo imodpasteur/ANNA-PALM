@@ -41,7 +41,7 @@ opt.add_lr_channel = 'pseudo'
 sources = create_data_sources(['TransformedTubulin001NB'], opt)
 d = sources['train']
 model = create_model(opt)
-model.train(d, verbose=1, max_epochs=1000)
+model.train(d, verbose=1, max_steps=200000)
 
 # training done
 opt.phase = 'test'

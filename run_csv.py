@@ -32,7 +32,7 @@ d = sources['train']
 # noise_source = create_data_sources('NoiseCollection001', opt)['train']
 # d.set_addtional_source(noise_source)
 model = create_model(opt)
-model.train(d, verbose=1, max_epochs=1000)
+model.train(d, verbose=1, max_steps=200000)
 
 opt.phase = 'test'
 opt.fineSize = 1024
