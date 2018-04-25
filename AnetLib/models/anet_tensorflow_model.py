@@ -99,6 +99,16 @@ class AnetModel():
             print('%s: %s' % (str(k), str(v)))
         print('-------------- End ----------------')
 
+    def initialize_from_config(self, config_path, **kwargs):
+        with open(config_path, 'r') as f:
+            config_json = json.load(f)
+            parser = argparse.ArgumentParser()
+            opt = parser.parse_args([])
+            config = vars(opt)
+            config.update(config_json)
+            config.update(kwargs)
+            self.initialize(opt)
+
     def start_coord(self):
         if self.__coord_stopped:
             self.coord = tf.train.Coordinator()
@@ -582,3 +592,35 @@ class AnetModel():
         self.set_input(img)
         self.test(dropout=dropout)
         # self.save_current_visuals()
+
+    def save_current_visuals(self, label=None):
+        images = self.get_current_visuals()
+        if 'path' in self.input:
+            output_paths = [os.path.join(self.opt.save_dir, os.path.split(p)[1]) for p in self.input['path']]
+        else:
+            output_paths = [self.opt.save_dir for i in range(len(images))]
+        if not os.path.exists(self.opt.save_dir):
+            os.makedirs(self.opt.save_dir)
+        for k, v in images.items():
+            for b in range(v.shape[0]):
+                ima = v[b]
+                channels = ima.shape[2]
+                for i in range(channels):
+                    im = Image.fromarray(ima[:, :, i])
+                    d, n = os.path.split(output_paths[b])
+                    n = '{}_{}_b{}_i{}.tif'.format(n, k, b, i)
+                    if label:
+                        n = '{}_'.format(label) + n
+                    im.save(os.path.join(d, n))
+
+    def save_config(self, label):
+        self._current_config['_current_epoch'] = self._current_epoch
+        opt = vars(self.opt)
+        for k in opt:
+            self._current_config[k] = opt[k]
+
+        save_filename = '%s_config.json' % (label)
+        save_path = os.path.join(self.opt.checkpoints_dir, save_filename)
+        with open(save_path, 'w') as f:
+            json.dump(self._current_config, f)
+        print('config({})  saved to {}'.format(label, save_path))
