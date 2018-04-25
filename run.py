@@ -37,8 +37,6 @@ opt.control_nc = 1
 opt.add_data_type_control = True
 opt.add_lr_channel = 'pseudo'
 # opt.continue_train = True
-opt.ngf = 2
-opt.ndf = 2
 # start training
 sources = create_data_sources(['TransformedTubulin001NB'], opt)
 d = sources['train']

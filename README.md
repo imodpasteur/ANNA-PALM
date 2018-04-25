@@ -40,9 +40,9 @@ pip install -r requirements-gpu.txt
 To test your installation, you could run the following code:
 ```
 cd ANNA-PALM
-python run.py --workdir=./tmp_test
+python run.py --workdir=./tmp_test --ngf=1 --ndf=1
 ```
-Once it starts without any error, you can terminate it with CTRL-C, otherwise, it will take a long time to actually finish the training.
+Once it starts to print `.` without any error, you can terminate it with CTRL-C, otherwise, it will take a long time to actually finish the training.
 
 ## ImageJ plugin
 Besides the python code, an ImageJ plugin for applying trained model can be downloaded [here](https://s3.eu-west-2.amazonaws.com/anna-palm-model/ANNA_PALM_Process-latest.jar).
@@ -117,7 +117,7 @@ There are two licenses for different part of the ANNA-PALM code: a [`MIT license
 * How to train faster?
 You will need tensorflow compatible GPU, and setup the corresponding drivers and pacakges.
 
-The other option is to reduce the size of the current neural network, for example add the following options in your script:
+The other option is to reduce the size of the current neural network, you can add `--ngf=16 --ndf=16` to your command, or add the following options in your script:
 ```
 opt.ngf = 16 # this is the base number of filters for the generator, default value: 64
 opt.ndf = 16 # this is the base number of filters for the discriminator, default value: 64
