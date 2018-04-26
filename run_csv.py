@@ -26,17 +26,16 @@ opt.add_lr_channel = False
 opt.use_random_channel_mask = True
 opt.lr_loss_mode = 'lr_predict'
 
+if opt.phase == 'train':
+    sources = create_data_sources('TransformedCSVImages', opt)
+    d = sources['train']
+    # noise_source = create_data_sources('NoiseCollection001', opt)['train']
+    # d.set_addtional_source(noise_source)
+    model = create_model(opt)
+    model.train(d, verbose=1, max_steps=200000)
 
-sources = create_data_sources('TransformedCSVImages', opt)
-d = sources['train']
-# noise_source = create_data_sources('NoiseCollection001', opt)['train']
-# d.set_addtional_source(noise_source)
-model = create_model(opt)
-model.train(d, verbose=1, max_steps=200000)
-
-opt.phase = 'test'
-opt.fineSize = 1024
-model = create_model(opt)
-sources = create_data_sources('TransformedCSVImages', opt)
-d = sources['test']
-model.predict(d, verbose=1)
+if opt.phase == 'test':
+    model = create_model(opt)
+    sources = create_data_sources('TransformedCSVImages', opt)
+    d = sources['test']
+    model.predict(d, verbose=1)

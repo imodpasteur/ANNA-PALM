@@ -36,16 +36,15 @@ opt.lambda_LR = 0
 opt.control_nc = 1
 opt.add_data_type_control = True
 opt.add_lr_channel = 'pseudo'
-# opt.continue_train = True
-# start training
-sources = create_data_sources(['TransformedTubulin001NB'], opt)
-d = sources['train']
-model = create_model(opt)
-model.train(d, verbose=1, max_steps=200000)
 
-# training done
-opt.phase = 'test'
-model = create_model(opt)
-sources = create_data_sources(['TransformedTubulin001NB'], opt)
-d = sources['test']
-model.predict(d, verbose=1)
+if opt.phase == 'train':
+    sources = create_data_sources(['TransformedTubulin001NB'], opt)
+    d = sources['train']
+    model = create_model(opt)
+    model.train(d, verbose=1, max_steps=200000)
+
+if opt.phase == 'test':
+    model = create_model(opt)
+    sources = create_data_sources(['TransformedTubulin001NB'], opt)
+    d = sources['test']
+    model.predict(d, verbose=1)

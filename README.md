@@ -55,7 +55,7 @@ Two type of scripts are available, the first one is to run on simulated microtub
 
 For example, you can train a new ANNA-PALM model with the following command:
 ```
-python run.py --workdir=./results/simulated_model
+python run.py --workdir=./training_simulated_exp1
 ```
 
 You can run the following command to see all the arguments.
@@ -71,7 +71,7 @@ python run.py --help
  * Now run the following command to train on your data:
 
 ```bash
-python run_csv.py --workdir=./training_workdir_exp1
+python run_csv.py --workdir=./training_workdir_exp1 --phase=train
 ```
 
 With the above code, it will first render histogram images with a subset of the full frame of each csv file. The rendered images will be saved into `__images__`. You need to check the files inside this folder is rendered correctly. You should be able to see images starts with `A_` and `B_`, they will be used as input and target image when training your A-net. If you have your widefield image placed correctly, you should also see images starts with `LR_`. You should check all these images with the help of contrast stretching in ImageJ for example.
@@ -85,7 +85,7 @@ You can also use ANNA-PALM to work with other type of images which are not local
 
   * Now run the following command as in the above example:
   ```bash
-  python run_img.py --workdir=./training_workdir_exp2
+  python run_img.py --workdir=./training_workdir_exp2 --phase=train
   ```
 
 ## Monitor your training
@@ -96,6 +96,22 @@ tensorboard --logdir=./
 ```
 Then you can open your browser, and go to http://localhost:6006 to see the loss and outputs etc. At the begining, you will only see the A-net graph. As the training goes, you will see a tab with loss curve etc.
 
+
+# Do prediction with trained model
+Specify the trained model directory with `load_dir` and use `phase=test` to switch to testing mode.
+
+```bash
+mkdir test_workdir_exp1
+python run.py --workdir=./test_workdir_exp1 --load_dir=./training_simulated_exp1 --phase=test
+```
+
+# Start new training from a previously trained model
+use `load_dir` to specify the directory where your trained model is stored, and add `continue_train`.
+
+```bash
+mkdir test_workdir_exp1
+python run.py --workdir=./test_workdir_exp1 --load_dir=./training_simulated_exp1 --continue_train --phase=train
+```
 
 ## Freeze trained models
 Together with ANNA-PALM python code, a ImageJ plugin is provided to
