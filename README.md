@@ -97,7 +97,7 @@ tensorboard --logdir=./
 Then you can open your browser, and go to http://localhost:6006 to see the loss and outputs etc. At the begining, you will only see the A-net graph. As the training goes, you will see a tab with loss curve etc.
 
 
-# Do prediction with trained model
+## Do prediction with trained model
 Specify the trained model directory with `load_dir` and use `phase=test` to switch to testing mode.
 
 ```bash
@@ -105,7 +105,7 @@ mkdir test_workdir_exp1
 python run.py --workdir=./test_workdir_exp1 --load_dir=./training_simulated_exp1 --phase=test
 ```
 
-# Start new training from a previously trained model
+## Start a training from a previously trained model
 use `load_dir` to specify the directory where your trained model is stored, and add `continue_train`.
 
 ```bash
