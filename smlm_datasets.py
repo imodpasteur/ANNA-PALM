@@ -166,12 +166,13 @@ class TransformedTubulinImages001():
         self.dim_ordering = opt.dim_ordering
         self.opt = opt
         self.repeat = 30
+        self.folder_filter = '*.csv'
 
     def __getitem__(self, key):
         if key == 'train':
             imgfolderLoader = SubFolderImagesLoader(extension='.png')
             source_train = FolderDataset(self.ptrain,
-                              channels = {'image': {'filter':'*.csv', 'loader': imgfolderLoader} },
+                              channels = {'image': {'filter': self.folder_filter, 'loader': imgfolderLoader} },
                              transform = self.transform_train,
                              recursive=False,
                              repeat=self.repeat)
@@ -376,6 +377,7 @@ class TransformedGenericImages(TransformedCSVImages):
         self.ptest = os.path.join(opt.workdir, 'test')
         self.iSplit = Split([0, 2], [2, 3])
         self.test_count = 0
+        self.folder_filter = '*'
 
 class CompositeRandomDataset():
     def __init__(self, datasets, opt, group='test'):

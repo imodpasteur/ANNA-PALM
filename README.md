@@ -44,6 +44,12 @@ python run.py --workdir=./tmp_test --ngf=1 --ndf=1
 ```
 Once it starts to print `.` without any error, you can terminate it with CTRL-C, otherwise, it will take a long time to actually finish the training.
 
+You can also run the following command to see all the arguments.
+```
+# for example
+python run.py --help
+```
+
 ## ImageJ plugin
 Besides the python code, an ImageJ plugin for applying trained model can be downloaded [here](https://s3.eu-west-2.amazonaws.com/anna-palm-model/ANNA_PALM_Process-latest.jar).
 
@@ -51,22 +57,16 @@ Besides the python code, an ImageJ plugin for applying trained model can be down
 
 ## Train with simulated images
 
-Two type of scripts are available, the first one is to run on simulated microtubules and nuclear pores.
+Two types of simulated images are available, simulated microtubules and nuclear pores.
 
-For example, you can train a new ANNA-PALM model with the following command:
+You can train a new ANNA-PALM model with the following command:
 ```
-python run.py --workdir=./training_simulated_exp1
-```
-
-You can run the following command to see all the arguments.
-```
-# for example
-python run.py --help
+python run.py --workdir=./training_simulated_exp1 --phase=train
 ```
 
 ## Train with localization tables
- * In order to train an ANNA-PALM model with your own data, you need to prepare your localization tables. Currently, you need to use the csv format produced with [ThunderSTORM](https://github.com/zitmen/thunderstorm). If you don't have any data for now, you can [download](https://www.dropbox.com/sh/lwl1l3tdtzdr1re/AACmm8hRYszNVXwI0gqIeaoLa?dl=0) our microtubule data we used in the paper.
- * Create a folder as your working directory(for example `training_workdir_exp1`) , inside your `training_workdir_exp1`, you need to create a folder named `train`.
+ * In order to train an ANNA-PALM model with your own data, you need to prepare your localization tables. Currently, the script requires csv tables produced with [ThunderSTORM](https://github.com/zitmen/thunderstorm). If you don't have any data for now, you can [download](https://www.dropbox.com/sh/lwl1l3tdtzdr1re/AACmm8hRYszNVXwI0gqIeaoLa?dl=0) our microtubule data we used in the paper.
+ * Create a folder as your working directory(for example `training_workdir_exp1`), then create a folder named `train` inside `training_workdir_exp1`.
  * Then, place all your csv files into the `train` folder. Optionally, you could reserve one or two files for validation purpose. In such case, you can create another folder named `test` and place your validation csv files into it. If you have widefield images, you need to export them as .png images (16bit or 8bit grayscale), and then rename then such they will have the same name as the corresponding csv file except the .png extension.
  * Now run the following command to train on your data:
 
@@ -81,7 +81,7 @@ When it's done, the training will start. It will produce some interim images in 
 ## Train with other type of images
 You can also use ANNA-PALM to work with other type of images which are not localization table. In such case, follow these steps:
   * Create a folder as your working directory(for example `training_workdir_exp2`) , inside your `training_workdir_exp2`, you need to create a folder named `train` and `test` (optional).
-  * Then, place all your images into the `train` folder, optionally place a few images into `test`.
+  * Then, place all your images into the `train` folder, optionally place a few images into `test`. Similar to what you would get in `__images__` folder from the above example. Images must organized within subfolders, one subfolder contains files for one sample(the same field of view), labeled with `A_`, `B_` and/or `LR_`.
 
   * Now run the following command as in the above example:
   ```bash
@@ -114,16 +114,15 @@ python run.py --workdir=./test_workdir_exp1 --load_dir=./training_simulated_exp1
 ```
 
 ## Freeze trained models
-Together with ANNA-PALM python code, a ImageJ plugin is provided to
 
 In order to use your trained model in the [imagej plugin](https://s3.eu-west-2.amazonaws.com/anna-palm-model/ANNA_PALM_Process-latest.jar), you need to first train a model, and then run the following script to get a frozen model:
 ```
 python freeze.py --workdir=./frozen_model_sim --load_dir=./results/simulated_model
 ```
- * use --load_dir to specify the directory contains your trained model
- * use --workdir to specify where you want to save the exported directory, you will find the frozen model file named "tensorflow_model.pb"
+ * use `--load_dir` to specify the directory contains your trained model
+ * use `--workdir` to specify where you want to save the exported directory, you will find the frozen model file named `tensorflow_model.pb`
 
-Then you can copy the .pb file into ImageJ.
+Then you can copy the `.pb` file into ImageJ.
 (TODO: how to add frozen model to imagej)
 
 ## License
