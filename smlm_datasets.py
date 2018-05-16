@@ -180,7 +180,7 @@ class TransformedTubulinImages001():
         elif key == 'test':
             imgfolderLoader = SubFolderImagesLoader(extension='.png')
             source_test = FolderDataset(self.ptest,
-                              channels = {'image': {'filter':'*.csv', 'loader': imgfolderLoader} },
+                              channels = {'image': {'filter': self.folder_filter, 'loader': imgfolderLoader} },
                              transform = self.transform_test,
                              recursive=False,
                              repeat=self.repeat)
