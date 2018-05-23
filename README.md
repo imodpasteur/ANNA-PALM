@@ -51,7 +51,7 @@ python run.py --help
 ```
 
 ## ImageJ plugin
-Besides the python code, an ImageJ plugin for applying trained model can be downloaded [here](https://s3.eu-west-2.amazonaws.com/anna-palm-model/ANNA_PALM_Process-latest.jar).
+Besides the python code, an ImageJ plugin for applying trained model can be downloaded [here](https://github.com/imodpasteur/Anet-ImageJ).
 
 ## USAGE
 
