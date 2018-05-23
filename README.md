@@ -51,7 +51,7 @@ python run.py --help
 ```
 
 ## ImageJ plugin
-Besides the python code, an ImageJ plugin for applying trained model can be downloaded [here](https://github.com/imodpasteur/Anet-ImageJ).
+Besides the python code, an ImageJ plugin for applying trained model can be downloaded from the [Anet-ImageJ repository](https://github.com/imodpasteur/Anet-ImageJ).
 
 ## USAGE
 
@@ -115,7 +115,7 @@ python run.py --workdir=./test_workdir_exp1 --load_dir=./training_simulated_exp1
 
 ## Freeze trained models
 
-In order to use your trained model in the [imagej plugin](https://s3.eu-west-2.amazonaws.com/anna-palm-model/ANNA_PALM_Process-latest.jar), you need to first train a model, and then run the following script to get a frozen model:
+In order to use your trained model in the [Anet-ImageJ plugin](https://github.com/imodpasteur/Anet-ImageJ), you need to first train a model, and then run the following script to get a frozen model:
 ```
 python freeze.py --workdir=./frozen_model_sim --load_dir=./results/simulated_model
 ```
