@@ -122,11 +122,13 @@ python freeze.py --workdir=./frozen_model_sim --load_dir=./results/simulated_mod
  * use `--load_dir` to specify the directory contains your trained model
  * use `--workdir` to specify where you want to save the exported directory, you will find the frozen model file named `tensorflow_model.pb`
 
-Then you can copy the `.pb` file into ImageJ.
-(TODO: how to add frozen model to imagej)
+Then you can copy the `.pb` file into ImageJ according to the instructions described in [Anet-ImageJ](https://github.com/imodpasteur/Anet-ImageJ).
 
 ## License
 There are two licenses for different part of the ANNA-PALM code: a [`MIT license`](https://github.com/imodpasteur/ANNA-PALM/blob/master/AnetLib/LICENSE) is applied to files inside the `AnetLib` folder. A [`Non-commercial License Agreement`](https://github.com/imodpasteur/ANNA-PALM/blob/master/license.pdf) is applied to all other files.
+
+## Citation
+Please cite our paper: `Ouyang et al., Nat. Biotechnol. 2018, doi:10.1038/nbt.4106`
 
 ## FAQ
 * How to train faster?
