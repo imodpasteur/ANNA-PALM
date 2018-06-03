@@ -1212,8 +1212,8 @@ def build_network(model_type, input_size, input_nc, output_nc, batch_size, use_r
 
     dropout_prob = tf.placeholder(tf.float32, name='dropout_prob')
     # inputs and targets are [batch_size, height, width, channels]
-    if model_type == 'a_net':
-        model = create_pix2pix_model(inputs_batch, targets_batch, control_batch, channel_mask_batch, ngf=ngf, ndf=ndf, dropout_prob=dropout_prob, bayesian_dropout=False, use_resize_conv=use_resize_conv, gan_weight=gan_weight, l1_weight=l1_weight, lr=lr, beta1=beta1, lambda_tv=lambda_tv, use_ssim='ms_ssim_l1', use_punet=True, control_nc=control_nc, control_classes=control_classes, use_gaussd=use_gaussd, lr_nc=lr_nc, lr_scale=lr_scale, use_squirrel=True, lr_loss_mode=lr_loss_mode, squirrel_weight=squirrel_weight)
+    if model_type == 'a_net' or model_type == 'anet':
+        model = create_pix2pix_model(inputs_batch, targets_batch, control_batch, channel_mask_batch, ngf=ngf, ndf=ndf, dropout_prob=dropout_prob, bayesian_dropout=False, use_resize_conv=use_resize_conv, gan_weight=gan_weight, l1_weight=l1_weight, lr=lr, beta1=beta1, lambda_tv=lambda_tv, use_ssim='ms_ssim_l1', use_punet=True, control_nc=control_nc, control_classes=control_classes, use_gaussd=use_gaussd, lr_nc=lr_nc, lr_scale=lr_scale, use_squirrel=lr_nc>0, lr_loss_mode=lr_loss_mode, squirrel_weight=squirrel_weight)
     elif model_type == 'unet':
         model = create_unet_model(inputs_batch, targets_batch, control_batch, channel_mask_batch, ngf=ngf, ndf=ndf, dropout_prob=dropout_prob, bayesian_dropout=False, use_resize_conv=use_resize_conv, lr=lr, beta1=beta1, lambda_tv=lambda_tv)
     elif model_type == 'punet':
@@ -1300,7 +1300,9 @@ def build_network(model_type, input_size, input_nc, output_nc, batch_size, use_r
     targets = model.targets
     outputs = model.outputs
     outputs = tf.identity(outputs, name='output')
-    squirrel_error_map = tf.identity(model.squirrel_error_map, name='error_map')
+    if model.squirrel_error_map is not None:
+        squirrel_error_map = tf.identity(model.squirrel_error_map, name='error_map')
+
     if model.lr_inputs is not None:
         lr_inputs = model.lr_inputs
     else:
