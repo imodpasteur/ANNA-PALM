@@ -150,7 +150,6 @@ class AnetModel():
             else:
                 raise Exception('invalid network label.')
 
-
     def save_network(self, sess, network_label, epoch_label, gpu_ids):
         assert epoch_label == 'latest'
         print("saving model to checkpoint")
@@ -167,6 +166,37 @@ class AnetModel():
         if not os.path.exists(save_path):
             os.makedirs(save_path)
         saver.save(self.sess, os.path.join(save_path, "model"), global_step=self.global_step)
+
+    def write_saved_model(self, saved_model_path, inputs, outputs):
+        from tensorflow.python.saved_model import signature_constants
+        saver = tf.train.Saver()
+
+        builder = tf.saved_model.builder.SavedModelBuilder(saved_model_path)
+
+        tensor_info_outputs = {}
+        for k in outputs:
+          v = self.sess.graph.get_tensor_by_name(k+":0")
+          tensor_info_outputs[k] = tf.saved_model.utils.build_tensor_info(v)
+
+        tensor_info_inputs = {}
+        for k in inputs:
+          v = self.sess.graph.get_tensor_by_name(k+":0")
+          tensor_info_inputs[k] = tf.saved_model.utils.build_tensor_info(v)
+
+        detection_signature = (
+            tf.saved_model.signature_def_utils.build_signature_def(
+                  inputs=tensor_info_inputs,
+                  outputs=tensor_info_outputs,
+                  method_name=signature_constants.PREDICT_METHOD_NAME))
+
+        builder.add_meta_graph_and_variables(
+              self.sess, [tf.saved_model.tag_constants.SERVING],
+              signature_def_map={
+                  signature_constants.DEFAULT_SERVING_SIGNATURE_DEF_KEY:
+                      detection_signature,
+              },
+          )
+        builder.save()
 
     def set_input(self, input):
         if input is not None:
