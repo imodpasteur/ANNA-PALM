@@ -3,6 +3,6 @@ numpy
 scipy
 matplotlib
 scikit-image
-tensorflow-gpu>=1.4.0	# GPU version of TensorFlow.
+tensorflow-gpu==1.4.0	# GPU version of TensorFlow.
 imreg_dft
 pytest

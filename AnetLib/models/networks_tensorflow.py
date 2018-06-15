@@ -24,8 +24,8 @@ CTRL_CHANNEL_POS = 1
 Model = collections.namedtuple("Model", "type, outputs, targets, uncertainty, predict_real, predict_fake, inputs, lr_inputs, lr_predict_real, lr_predict_fake, squirrel_error_map, squirrel_discrim_loss, squirrel_discrim_grads_and_vars, discrim_loss, discrim_grads_and_vars, gen_loss_GAN, gen_loss, gen_loss_L1, gen_loss_L2, gen_loss_SSIM, gen_loss_squirrel, losses, gen_grads_and_vars, squirrel_discrim_train, train")
 
 def tf_scale(image, range_lim=1):
-    mn = tf.reduce_min(image, axis=(0, 1, 2), keepdims=True)
-    mx = tf.reduce_max(image, axis=(0, 1, 2), keepdims=True)
+    mn = tf.reduce_min(image, axis=(0, 1, 2), keep_dims=True)
+    mx = tf.reduce_max(image, axis=(0, 1, 2), keep_dims=True)
     return (image - mn) / tf.maximum(range_lim, (mx - mn))
 
 def preprocess(images, mode='min_max[0,1]', range_lim=1.0):

@@ -3,6 +3,6 @@ numpy
 scipy
 matplotlib
 scikit-image
-tensorflow>=1.4.0	# CPU Version of TensorFlow.
+tensorflow==1.4.0	# CPU Version of TensorFlow.
 imreg_dft
 pytest

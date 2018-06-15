@@ -15,7 +15,7 @@ from AnetLib.util.freeze_graph import freeze_latest_checkpoint
 default_workdir = './workdir'
 opt = Options().parse()
 opt.model = 'anet_tensorflow'
-opt.fineSize = 2560
+opt.fineSize = 512
 opt.batchSize = 1
 opt.dim_ordering = 'channels_last'
 opt.display_freq = 500
