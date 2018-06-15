@@ -7,13 +7,13 @@ python3 freeze.py --workdir=./results/frozen_model_1 --load_dir=./results/simula
 import os
 import sys
 import tensorflow as tf
-from AnetLib.options.train_options import TrainOptions
+from AnetLib.options.train_options import Options
 from AnetLib.models.models import create_model
 from smlm_datasets import create_data_sources
 from AnetLib.util.freeze_graph import freeze_latest_checkpoint
 
 default_workdir = './workdir'
-opt = TrainOptions().parse()
+opt = Options().parse()
 opt.model = 'anet_tensorflow'
 opt.fineSize = 2560
 opt.batchSize = 1
@@ -31,10 +31,13 @@ opt.control_nc = 1
 opt.add_data_type_control = True
 opt.add_lr_channel = 'pseudo'
 opt.continue_train = True
-opt.no_iterator = True
+opt.no_queue = True
+
 model = create_model(opt)
 model.save('latest')
 model.close()
+
+
 
 freeze_latest_checkpoint(os.path.join(opt.workdir, '__model__'), output_file=os.path.join(opt.workdir, "tensorflow_model.pb"), output_node_names='output,error_map')
 
