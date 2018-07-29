@@ -28,6 +28,7 @@ opt.lr_loss_mode = 'lr_predict'
 
 if opt.phase == 'train':
     sources = create_data_sources('TransformedGenericImages', opt)
+    sources.file_extension = '.png'
     d = sources['train']
     # noise_source = create_data_sources('NoiseCollection001', opt)['train']
     # d.set_addtional_source(noise_source)
@@ -37,5 +38,6 @@ if opt.phase == 'train':
 if opt.phase == 'test':
     model = create_model(opt)
     sources = create_data_sources('TransformedGenericImages', opt)
+    sources.file_extension = '.png'
     d = sources['test']
     model.predict(d, verbose=1)
