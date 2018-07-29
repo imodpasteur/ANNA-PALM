@@ -173,10 +173,11 @@ class TransformedTubulinImages001():
         self.opt = opt
         self.repeat = 30
         self.folder_filter = '*.csv'
+        self.file_extension = '.png'
 
     def __getitem__(self, key):
         if key == 'train':
-            imgfolderLoader = SubFolderImagesLoader(extension='.png')
+            imgfolderLoader = SubFolderImagesLoader(extension=self.file_extension)
             source_train = FolderDataset(self.ptrain,
                               channels = {'image': {'filter': self.folder_filter, 'loader': imgfolderLoader} },
                              transform = self.transform_train,
@@ -184,7 +185,7 @@ class TransformedTubulinImages001():
                              repeat=self.repeat)
             return source_train
         elif key == 'test':
-            imgfolderLoader = SubFolderImagesLoader(extension='.png')
+            imgfolderLoader = SubFolderImagesLoader(extension=self.file_extension)
             source_test = FolderDataset(self.ptest,
                               channels = {'image': {'filter': self.folder_filter, 'loader': imgfolderLoader} },
                              transform = self.transform_test,
@@ -384,6 +385,7 @@ class TransformedGenericImages(TransformedCSVImages):
         self.iSplit = Split([0, 2], [2, 3])
         self.test_count = 0
         self.folder_filter = '*'
+        self.file_extension = '.png'
 
 class SubFolderWFImagesLoader(FileLoader):
     def __init__(self, drift_correction=False, scale_LR=True):
