@@ -216,7 +216,7 @@ class TransformedTubulinImages001():
 
     def transform_test(self, imageAB):
         As, Bs, path = imageAB['image']['A'], imageAB['image']['B'], imageAB['image.path']
-        histin, histout = random.choice(As).astype('float32'), random.choice(As).astype('float32')
+        histin, histout = random.choice(As).astype('float32'), random.choice(Bs if len(Bs)>0 else As).astype('float32')
         histin = np.expand_dims(histin, axis=2) if histin.ndim == 2 else histin
         histout = np.expand_dims(histout, axis=2) if histout.ndim == 2 else histout
         output_clip = self.output_clip
@@ -268,7 +268,7 @@ class TransformedTubulinImages004(TransformedTubulinImages001):
 
     def transform_test(self, imageAB):
         As, Bs, path = imageAB['image']['A'], imageAB['image']['B'], imageAB['image.path']
-        histin, histout = random.choice(As).astype('float32'), random.choice(As).astype('float32')
+        histin, histout = random.choice(As).astype('float32'), random.choice(Bs if len(Bs)>0 else As).astype('float32')
         histin = np.expand_dims(histin, axis=2) if histin.ndim == 2 else histin
         histout = np.expand_dims(histout, axis=2) if histout.ndim == 2 else histout
         imgin, imgout = self.iCropTest(histin), self.iCropTest(histout)
@@ -360,7 +360,7 @@ class TransformedCSVImages(TransformedTubulinImages004):
             self.test_count = 0
 
         path = path + '_' + os.path.split(pathAs[self.test_count%len(As)])[1]
-        histin, histout= As[self.test_count%len(As)].astype('float32'), As[self.test_count%len(As)].astype('float32')
+        histin, histout= As[self.test_count%len(As)].astype('float32'), (Bs if len(Bs)>0 else As)[self.test_count%len(Bs if len(Bs)>0 else As)].astype('float32')
         self.test_count += 1
         if len(LRs) == 0:
             lrin = np.zeros_like(histin)
@@ -525,7 +525,7 @@ class TransformedLRSR():
 
     def transform_test(self, imageAB):
         As, Bs, path = imageAB['image']['A'], imageAB['image']['B'], imageAB['image.path']
-        histin, histout = random.choice(As).astype('float32'), random.choice(As).astype('float32')
+        histin, histout = random.choice(As).astype('float32'), random.choice(Bs if len(Bs)>0 else As).astype('float32')
         histin = np.expand_dims(histin, axis=2) if histin.ndim == 2 else histin
         histout = np.expand_dims(histout, axis=2) if histout.ndim == 2 else histout
         output_clip = self.output_clip
@@ -561,7 +561,7 @@ class TransformedLRSR002(TransformedLRSR):
 
     def transform_test(self, imageAB):
         As, Bs, path = imageAB['image']['A'], imageAB['image']['B'], imageAB['image.path']
-        histin, histout = random.choice(As).astype('float32'), random.choice(As).astype('float32')
+        histin, histout = random.choice(As).astype('float32'), random.choice(Bs if len(Bs)>0 else As).astype('float32')
         histin = np.expand_dims(histin, axis=2) if histin.ndim == 2 else histin
         histout = np.expand_dims(histout, axis=2) if histout.ndim == 2 else histout
         output_clip = self.output_clip
