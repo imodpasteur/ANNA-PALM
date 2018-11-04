@@ -6,11 +6,11 @@ from PIL import Image
 
 from AnetLib.data.image_utils import RandomRotate, CenterCropNumpy, RandomCropNumpy, PoissonSubsampling, AddGaussianPoissonNoise, GaussianBlurring, AddGaussianNoise, ElasticTransform
 from datasets import TUBULIN, NUCLEAR_PORE
-from AnetLib.data.file_loader import FileLoader
+from AnetLib.data.file_loader import FileLoader,ImageLoader
 from AnetLib.data.image_utils import EnhancedCompose, Merge, Split
 from AnetLib.data.image_utils import RandomRotate, CenterCropNumpy, RandomCropNumpy
 from AnetLib.data.image_utils import NormalizeNumpy, MaxScaleNumpy
-from AnetLib.data.folder_dataset import FolderDataset
+from AnetLib.data.folder_dataset import FolderDataset, SubfolderDataset
 from localization_utils import generate_image_pairs_from_csv, SubFolderImagesLoader
 
 DatasetTypeIDs = {'random': -1, 'microtubule': 0, 'nuclear_pore': 1, 'actin': 2, 'mitochondria': 3}
@@ -45,8 +45,10 @@ def create_data_sources(name, opt):
         return TransformedNuclearPore001Dense(opt)
     elif name == 'TransformedCSVImages':
         return TransformedCSVImages(opt)
-    elif name == 'TransformedGenericImages':
-        return TransformedGenericImages(opt)
+    elif name == 'TransformedABImages':
+        return TransformedABImages(opt)
+    elif name == 'GenericTransformedImages':
+        return GenericTransformedImages(opt)
     else:
         raise Exception('unsupported dataset')
 
@@ -377,7 +379,7 @@ class TransformedCSVImages(TransformedTubulinImages004):
         return {'A': imgin, 'B': imgout, 'path': path}
 
 
-class TransformedGenericImages(TransformedCSVImages):
+class TransformedABImages(TransformedCSVImages):
     def __init__(self, opt, force_generate=False):
         super(TransformedCSVImages, self).__init__(opt)
         self.ptrain = os.path.join(opt.workdir, 'train')
@@ -573,6 +575,92 @@ class TransformedLRSR002(TransformedLRSR):
         else:
             assert self.dim_ordering == 'channels_last'
         return {'A': imgin, 'B': imgout, 'path': path}
+
+
+
+class GenericTransformedImages():
+    def __init__(self, opt):
+        train_crop_size1 = int(opt.fineSize * 1.45) #pre-crop
+        train_crop_size2 = opt.fineSize
+        train_crop_size3 = opt.fineSize
+        test_size = opt.fineSize
+
+        self.ptrain = os.path.join(opt.workdir, 'train') #'./datasets/Christian-TMR-IF-v0.1/train'
+        self.pvalid = os.path.join(opt.workdir, 'valid')
+        self.ptest = os.path.join(opt.workdir, 'test') #'./datasets/Christian-TMR-IF-v0.1/test'
+
+        self.input_channels = []
+        for ch in opt.input_channels.split(','):
+            name, filter = ch.split('=')
+            self.input_channels.append((name, {'filter':filter, 'loader':ImageLoader()}, ))
+
+        self.target_channels = []
+        for ch in opt.target_channels.split(','):
+            name, filter = ch.split('=')
+            self.target_channels.append((name, {'filter':filter, 'loader':ImageLoader()}, ))
+
+        # prepare the transforms
+        self.iMerge = Merge()
+        self.iElastic = ElasticTransform(alpha=1000, sigma=40)
+        self.iSplit = Split([0, len(self.input_channels)], [len(self.input_channels), len(self.input_channels)+len(self.target_channels)])
+
+        self.iRCropTrain1 = RandomCropNumpy(size=(train_crop_size1, train_crop_size1))
+        self.iRot = RandomRotate()
+        self.iCropTrain2 = CenterCropNumpy(size=(train_crop_size2, train_crop_size2))
+
+        self.iCropTest = CenterCropNumpy(size=(test_size, test_size))
+
+        self.dim_ordering = opt.dim_ordering
+        self.opt = opt
+        self.repeat = 30
+        self.input_channel_names = [n for n, _ in self.input_channels]
+        self.output_channel_names = [n for n, _ in self.target_channels]
+
+    def __getitem__(self, key):
+        if key == 'train':
+            source_train = SubfolderDataset(self.ptrain,
+                             channels = self.input_channels +  self.target_channels,
+                             transform = self.transform_train,
+                             repeat=self.repeat)
+            return source_train
+        elif key == 'valid':
+            source_valid = SubfolderDataset(self.pvalid,
+                             channels = self.input_channels +  self.target_channels,
+                             transform = self.transform_valid,
+                             repeat=1)
+            return source_valid
+        elif key == 'test':
+            source_test = SubfolderDataset(self.ptest,
+                             channels = self.input_channels,
+                             transform = self.transform_test,
+                             repeat=1)
+            return source_test
+        else:
+            raise Exception('only train and test are supported.')
+
+    def transform_train(self, images):
+        inputs = [np.expand_dims(np.array(images[n]), axis=2) for n in self.input_channel_names]
+        outputs = [np.expand_dims(np.array(images[n]), axis=2) for n in self.output_channel_names]
+        ios = self.iMerge(inputs + outputs)
+        ios = self.iRCropTrain1(ios)
+        ios = self.iRot(ios)
+        ios = self.iElastic(ios)
+        ios = self.iCropTrain2(ios)
+        inputs, outputs = self.iSplit(ios)
+        return {'A': inputs, 'B': outputs, 'path': images['__path__']}
+
+    def transform_valid(self, images):
+        inputs = [np.expand_dims(np.array(images[n]), axis=2) for n in self.input_channel_names]
+        outputs = [np.expand_dims(np.array(images[n]), axis=2) for n in self.output_channel_names]
+        inputs = self.iCropTest(self.iMerge(inputs))
+        outputs = self.iCropTest(self.iMerge(outputs))
+        return {'A': inputs, 'B': outputs, 'path': images['__path__']}
+
+    def transform_test(self, images):
+        inputs = [np.expand_dims(np.array(images[n]), axis=2) for n in self.input_channel_names]
+        inputs = self.iCropTest(self.iMerge(inputs))
+        return {'A': inputs, 'path': images['__path__']}
+
 
 class CompositeRandomDataset():
     def __init__(self, datasets, opt, group='test'):
