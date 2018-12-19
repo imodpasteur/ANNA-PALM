@@ -3,6 +3,7 @@ import tensorflow as tf
 from AnetLib.options.train_options import Options
 from AnetLib.models.models import create_model
 from smlm_datasets import create_data_sources
+import json
 
 default_workdir = './output/' + os.path.basename(sys.argv[0])
 opt = Options().parse()
@@ -16,28 +17,36 @@ opt.use_resize_conv = True
 opt.norm_A = 'mean_std'
 opt.norm_B = 'min_max[0,1]'
 opt.lambda_A = 50
-opt.input_nc = 2
-opt.lr_nc = 1
+opt.input_nc = 1
+opt.lr_nc = 0
 opt.lr_scale = 1.0/4.0
 opt.lambda_LR = 25
 opt.control_nc = 1
 opt.add_data_type_control = True
 opt.add_lr_channel = False
-opt.use_random_channel_mask = True
+opt.use_random_channel_mask = False
 opt.lr_loss_mode = 'lr_predict'
+opt.ngf = 16
+opt.ndf = 16
 
 if opt.phase == 'train':
-    sources = create_data_sources('TransformedABImages', opt)
+    sources = create_data_sources('TransformedTubulinImages001', opt)
     sources.file_extension = '.png'
     d = sources['train']
     # noise_source = create_data_sources('NoiseCollection001', opt)['train']
     # d.set_addtional_source(noise_source)
     model = create_model(opt)
-    model.train(d, verbose=1, max_steps=200000)
+    model.train(d, verbose=1, max_steps=20000)
+    d = sources['test']
+    reports = model.predict(d, verbose=1)
+    with open(os.path.join(opt.workdir, 'prediction_report.json'), 'w') as outfile:
+        json.dump(reports, outfile)
 
 if opt.phase == 'test':
     model = create_model(opt)
-    sources = create_data_sources('TransformedABImages', opt)
+    sources = create_data_sources('TransformedTubulinImages001', opt)
     sources.file_extension = '.png'
     d = sources['test']
     model.predict(d, verbose=1)
+
+os._exit(0)

@@ -482,6 +482,7 @@ class AnetModel():
         options = tf.RunOptions(timeout_in_ms=500000)
         max_steps = min(steps_per_epoch, max_steps)
 
+        reportsList = []
         for step in range(max_steps):
             outputsList = []
             uncertaintyList = []
@@ -493,11 +494,14 @@ class AnetModel():
                 results = self.sess.run(fetches, feed_dict={'dropout_prob:0': self.get_dropout_prob()}, options=options)
                 assert lastInputs is None or np.all(lastInputs == results['inputs']), 'inputs must be the same.'
                 print('{}-{}'.format(step, results['paths'][0][0]))
+                _report = {}
                 for k, v in results.items():
                     if k in self.loss_fetches:
                         self._current_report[k] = v
+                        _report[k] = float(v)
                         print('{}={}'.format(k, v), end=', ')
                 print('')
+                reportsList.append(_report)
                 lastInputs = results['inputs']
                 outputsList.append(results['outputs'])
                 if 'aleatoric_uncertainty' in results:
@@ -532,6 +536,7 @@ class AnetModel():
                 except Exception as e:
                     print('\nerror in step callback.')
         queue_stop()
+        return reportsList
 
     def save(self, label='latest'):
         self._current_config['global_step'] = self.global_step
