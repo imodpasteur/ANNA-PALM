@@ -1,5 +1,5 @@
 Pillow
-numpy
+numpy==1.15.0
 scipy
 matplotlib
 scikit-image
