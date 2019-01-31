@@ -413,6 +413,7 @@ class AnetModel():
             self._current_report['epoch'] = self._current_epoch
             self._current_report['global_step'] = self.global_step
 
+
             if 'display' in results:
                 display = results["display"]
                 self.retrieve_results(display)
@@ -443,10 +444,19 @@ class AnetModel():
 
             if step_callback:
                 try:
-                    details = {'epoch': self._current_epoch, 'step': step}
+                    details = {}
+                    for k, v in self._current_report.items():
+                        if isinstance(v, np.generic):
+                            details[k] = np.asscalar(v)
+                        else:
+                            details[k] = v
+
+                    if 'display' in results:
+                        details['display'] = self.get_current_visuals()
+
                     step_callback(self, details)
                 except Exception as e:
-                    print('\nerror in step callback.')
+                    print('\nerror in step callback: ' + str(e))
             if self._current_epoch > last_epoch:
                 last_epoch = self._current_epoch
                 if epoch_callback:
@@ -454,7 +464,7 @@ class AnetModel():
                         details = {'epoch': self._current_epoch, 'step': step}
                         epoch_callback(self, details)
                     except Exception as e:
-                        print('\nerror in epoch callback.')
+                        print('\nerror in epoch callback: ' + str(e))
         train_writer.close()
         queue_stop()
 
@@ -504,10 +514,10 @@ class AnetModel():
                     uncertaintyList.append(results['aleatoric_uncertainty'])
                 if repeat_callback:
                     try:
-                        details = {'step': step, 'repeat': i}
+                        details = {'step': step, 'repeat': i, 'display': results}
                         repeat_callback(self, details)
                     except Exception as e:
-                        print('\nerror in repeat callback.')
+                        print('\nerror in repeat callback: ' + str(e))
             if repeat>1:
                 outputss = np.stack(outputsList)
                 vs = np.var(outputss, axis=0)
@@ -527,10 +537,10 @@ class AnetModel():
             self.save_current_visuals(label)
             if step_callback:
                 try:
-                    details = {'step': step}
+                    details = {'step': step, 'display': self.get_current_visuals()}
                     step_callback(self, details)
                 except Exception as e:
-                    print('\nerror in step callback.')
+                    print('\nerror in step callback: ' + str(e))
         queue_stop()
 
     def save(self, label='latest'):
