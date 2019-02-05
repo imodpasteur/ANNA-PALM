@@ -6,9 +6,9 @@ For more details, please checkout https://annapalm.pasteur.fr/
 
 ## TRY ANNA-PALM WITH IMJOY.IO
 
-1. Download and Install the [ImJoy App](https://github.com/oeway/ImJoy-App/releases)
-2. [Install](https://imjoy.io/#/app?w=ANNA-PALM&plugin=oeway/ImJoy-Plugins:ANNA-PALM) ANNA-PALM
-3. Use it from the ImJoy plugin menu
+1. Download and Install the [ImJoy App](https://github.com/oeway/ImJoy-App/releases);
+2. [Install](https://imjoy.io/#/app?w=ANNA-PALM&plugin=oeway/ImJoy-Plugins:ANNA-PALM) the ANNA-PALM plugin;
+3. Use it from the ImJoy plugin menu.
 
 ## MANUAL INSTALLATION
 
