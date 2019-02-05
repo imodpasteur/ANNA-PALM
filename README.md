@@ -4,7 +4,13 @@ Accelerating Single Molecule Localization Microscopy with Deep Learning.
 
 For more details, please checkout https://annapalm.pasteur.fr/
 
-## INSTALLATION
+## TRY ANNA-PALM WITH IMJOY.IO
+
+1. Download and Install the [ImJoy App](https://github.com/oeway/ImJoy-App/releases)
+2. [Install](https://imjoy.io/#/app?w=ANNA-PALM&plugin=oeway/ImJoy-Plugins:ANNA-PALM) ANNA-PALM
+3. Use it from the ImJoy plugin menu
+
+## MANUAL INSTALLATION
 
 ANNA-PALM has the following dependencies:
  * Python 3.6
