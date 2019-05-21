@@ -443,32 +443,26 @@ class AnetModel():
                 self.save('latest')
 
             if step_callback:
-                try:
-                    details = {}
-                    for k, v in self._current_report.items():
-                        if isinstance(v, np.generic):
-                            details[k] = np.asscalar(v)
-                        else:
-                            details[k] = v
 
-                    if 'display' in results:
-                        details['display'] = self.get_current_visuals()
+                details = {}
+                for k, v in self._current_report.items():
+                    if isinstance(v, np.generic):
+                        details[k] = np.asscalar(v)
+                    else:
+                        details[k] = v
 
-                    ret = step_callback(self, details)
-                    if ret == 'stop':
-                        break
-                except Exception as e:
-                    print('\nerror in step callback: ' + str(e))
+                if 'display' in results:
+                    details['display'] = self.get_current_visuals()
+
+                step_callback(self, details)
+
             if self._current_epoch > last_epoch:
                 last_epoch = self._current_epoch
                 if epoch_callback:
-                    try:
-                        details = {'epoch': self._current_epoch, 'step': step}
-                        ret = epoch_callback(self, details)
-                        if ret == 'stop':
-                            break
-                    except Exception as e:
-                        print('\nerror in epoch callback: ' + str(e))
+                    details = {'epoch': self._current_epoch, 'step': step}
+                    ret = epoch_callback(self, details)
+                    if ret == 'stop':
+                        break
         train_writer.close()
         queue_stop()
 
