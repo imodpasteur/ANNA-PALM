@@ -439,6 +439,9 @@ class AnetModel():
                         print('{}={}'.format(k, v), end=', ')
                 sys.stdout.flush()
 
+            if should(opt.save_latest_freq):
+                self.save('latest')
+
             if step_callback:
                 try:
                     details = {}
@@ -451,7 +454,9 @@ class AnetModel():
                     if 'display' in results:
                         details['display'] = self.get_current_visuals()
 
-                    step_callback(self, details)
+                    ret = step_callback(self, details)
+                    if ret == 'stop':
+                        break
                 except Exception as e:
                     print('\nerror in step callback: ' + str(e))
             if self._current_epoch > last_epoch:
@@ -459,7 +464,9 @@ class AnetModel():
                 if epoch_callback:
                     try:
                         details = {'epoch': self._current_epoch, 'step': step}
-                        epoch_callback(self, details)
+                        ret = epoch_callback(self, details)
+                        if ret == 'stop':
+                            break
                     except Exception as e:
                         print('\nerror in epoch callback: ' + str(e))
         train_writer.close()
