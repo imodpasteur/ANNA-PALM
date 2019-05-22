@@ -324,13 +324,13 @@ class TransformedCSVImages(TransformedTubulinImages004):
         if not os.path.exists(self.ptest) or force_generate:
             if not os.path.exists(os.path.join(opt.workdir, 'test')):
                 return
-            aframes = list(np.logspace(-3, np.log(1.0), 32)*60000) + [0,]
+            # aframes = list(np.logspace(-3, np.log(1.0), 32)*60000) + [0,]
             generate_image_pairs_from_csv(os.path.join(opt.workdir, 'test'),
                                     self.ptest,
-                                    A_frame=aframes, B_frame=1.0,
+                                    A_frame=800, B_frame=1.0,
                                     A_frame_limit=(0, 1.0),
                                     B_frame_limit=(0, 1.0),
-                                    image_per_file=len(aframes),
+                                    image_per_file=10,
                                     target_size=(2560, 2560),
                                     zero_offset=True)
 
