@@ -1,6 +1,6 @@
 Pillow
 numpy==1.15.0
-scipy
+scipy==1.0.0
 matplotlib
 scikit-image
 tensorflow==1.4.0	# CPU Version of TensorFlow.
