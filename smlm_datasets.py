@@ -594,15 +594,15 @@ class GenericTransformedImages():
             name, filter = ch.split('=')
             self.input_channels.append((name, {'filter':filter, 'loader':ImageLoader()}, ))
 
-        self.target_channels = []
-        for ch in opt.target_channels.split(','):
+        self.output_channels = []
+        for ch in opt.output_channels.split(','):
             name, filter = ch.split('=')
-            self.target_channels.append((name, {'filter':filter, 'loader':ImageLoader()}, ))
+            self.output_channels.append((name, {'filter':filter, 'loader':ImageLoader()}, ))
 
         # prepare the transforms
         self.iMerge = Merge()
         self.iElastic = ElasticTransform(alpha=1000, sigma=40)
-        self.iSplit = Split([0, len(self.input_channels)], [len(self.input_channels), len(self.input_channels)+len(self.target_channels)])
+        self.iSplit = Split([0, len(self.input_channels)], [len(self.input_channels), len(self.input_channels)+len(self.output_channels)])
 
         self.iRCropTrain1 = RandomCropNumpy(size=(train_crop_size1, train_crop_size1))
         self.iRot = RandomRotate()
@@ -614,18 +614,18 @@ class GenericTransformedImages():
         self.opt = opt
         self.repeat = 30
         self.input_channel_names = [n for n, _ in self.input_channels]
-        self.output_channel_names = [n for n, _ in self.target_channels]
+        self.output_channel_names = [n for n, _ in self.output_channels]
 
     def __getitem__(self, key):
         if key == 'train':
             source_train = SubfolderDataset(self.ptrain,
-                             channels = self.input_channels +  self.target_channels,
+                             channels = self.input_channels +  self.output_channels,
                              transform = self.transform_train,
                              repeat=self.repeat)
             return source_train
         elif key == 'valid':
             source_valid = SubfolderDataset(self.pvalid,
-                             channels = self.input_channels +  self.target_channels,
+                             channels = self.input_channels +  self.output_channels,
                              transform = self.transform_valid,
                              repeat=1)
             return source_valid

@@ -27,12 +27,12 @@ opt.use_random_channel_mask = False
 opt.lr_loss_mode = 'lr_predict'
 
 opt.input_channels = 'em=EM.png'
-opt.target_channels = 'mask=Mask.png'
+opt.output_channels = 'mask=Mask.png'
 opt.input_nc = len(opt.input_channels.split(','))
-opt.target_nc = len(opt.target_channels.split(','))
+opt.output_nc = len(opt.output_channels.split(','))
 
 # opt.input_channels = [('cell', {'filter':'cells*.png', 'loader':ImageLoader()})]
-# opt.target_channels = [('mask', {'filter':'mask_edge*.png', 'loader':ImageLoader()})]
+# opt.output_channels = [('mask', {'filter':'mask_edge*.png', 'loader':ImageLoader()})]
 
 if opt.phase == 'train':
     sources = create_data_sources('GenericTransformedImages', opt)
