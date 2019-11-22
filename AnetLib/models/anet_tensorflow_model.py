@@ -10,7 +10,7 @@ import random
 
 from . import networks_tensorflow as networks
 from AnetLib.data.image_utils import GaussianBlurring
-from AnetLib.data.normalization import get_norm
+#from AnetLib.data.normalization import get_norm
 
 class AnetModel():
     def name(self):

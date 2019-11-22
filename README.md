@@ -40,6 +40,7 @@ pip install -r requirements.txt
 
 Or if you have an tensorflow compatible GPU, and you want to use GPU for training, run the following command:
 ```bash
+conda install cudatoolkit=10.0 cudnn -y
 pip install -r requirements-gpu.txt
 ```
 
