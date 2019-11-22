@@ -1,5 +1,4 @@
 import tensorflow as tf
-from tensorflow.contrib.tensorboard.plugins import projector
 import numpy as np
 import argparse
 import os
@@ -24,8 +23,8 @@ CTRL_CHANNEL_POS = 1
 Model = collections.namedtuple("Model", "type, outputs, targets, uncertainty, predict_real, predict_fake, inputs, lr_inputs, lr_predict_real, lr_predict_fake, squirrel_error_map, squirrel_discrim_loss, squirrel_discrim_grads_and_vars, discrim_loss, discrim_grads_and_vars, gen_loss_GAN, gen_loss, gen_loss_L1, gen_loss_L2, gen_loss_SSIM, gen_loss_squirrel, losses, gen_grads_and_vars, squirrel_discrim_train, train")
 
 def tf_scale(image, range_lim=1):
-    mn = tf.reduce_min(image, axis=(0, 1, 2), keep_dims=True)
-    mx = tf.reduce_max(image, axis=(0, 1, 2), keep_dims=True)
+    mn = tf.reduce_min(image, axis=(0, 1, 2), keepdims=True)
+    mx = tf.reduce_max(image, axis=(0, 1, 2), keepdims=True)
     return (image - mn) / tf.maximum(range_lim, (mx - mn))
 
 def preprocess(images, mode='min_max[0,1]', range_lim=1.0):
@@ -38,6 +37,10 @@ def preprocess(images, mode='min_max[0,1]', range_lim=1.0):
         elif mode == 'min_max[0,1]':
             # [0, 1] => [-1, 1]
             return tf_scale(images, range_lim=range_lim) * 2 - 1
+        elif mode == 'scale[8bit]':
+            return images / 255 * 2 -1
+        elif mode == 'scale[16bit]':
+            return images / 65535 * 2 - 1
         else:
             raise NotImplemented
 
@@ -50,6 +53,12 @@ def deprocess(images, mode='min_max[0,1]'):
             # [-1, 1] => [0, 1]
             images = (images + 1) / 2
             return images
+        elif mode == 'scale[8bit]':
+            images = (images + 1) / 2
+            return images * 255
+        elif mode == 'scale[16bit]':
+            images = (images + 1) / 2
+            return images * 65535
         else:
             raise NotImplemented
 
@@ -308,6 +317,14 @@ def tf_ms_ssim_l1_loss(img1, img2, mean_metric=True, alpha=0.84):
         return tf.reduce_mean(loss_map)
     else:
         return loss_map
+
+def tf_l1_loss(img1, img2):
+    diff = tf.abs(img1 - img2)
+    return tf.reduce_mean(diff)
+
+def tf_l2_loss(img1, img2):
+    diff = tf.square(img1 - img2)
+    return tf.reduce_mean(diff)
 
 def generate_unet(generator_inputs, generator_outputs_channels, ngf=64, bayesian_dropout=False, dropout_prob=0.5, output_num=1, activation=tf.tanh, use_resize_conv=False, lr_inputs=None, lr_pos=0):
     layers = []
@@ -1171,7 +1188,7 @@ def build_network(model_type, input_size, input_nc, output_nc, batch_size, use_r
         norm_B = 'min_max[0,1]'
     if norm_LR is None:
         norm_LR = 'min_max[0,1]'
-    assert norm_A == 'mean_std' and norm_B == 'min_max[0,1]' and (lr_nc is None or lr_nc<=0 or norm_LR == 'min_max[0,1]')
+    assert norm_A == 'mean_std' and (lr_nc is None or lr_nc<=0 or norm_LR == 'min_max[0,1]')
     if use_queue:
         queue_path = tf.placeholder(tf.string, shape=[None, 1], name='queue_path')
         queue_input = tf.placeholder(tf.float32, shape=[None, input_size, input_size, input_nc], name='queue_input')
@@ -1359,17 +1376,17 @@ def build_network(model_type, input_size, input_nc, output_nc, batch_size, use_r
             if model.type == 'GAN':
                 avaraged_loss_fetches["discrim_loss"] = model.discrim_loss
                 avaraged_loss_fetches["gen_loss_GAN"] = model.gen_loss_GAN
-            if model.gen_loss:
+            if model.gen_loss is not None:
                 avaraged_loss_fetches["gen_loss"] = model.gen_loss
-            if model.gen_loss_L1:
+            if model.gen_loss_L1 is not None:
                 avaraged_loss_fetches["gen_loss_L1"] = model.gen_loss_L1
-            if model.gen_loss_L2:
+            if model.gen_loss_L2 is not None:
                 avaraged_loss_fetches["gen_loss_L2"] = model.gen_loss_L2
-            if model.gen_loss_SSIM:
+            if model.gen_loss_SSIM is not None:
                 avaraged_loss_fetches["gen_loss_SSIM"] = model.gen_loss_SSIM
-            if model.gen_loss_squirrel:
+            if model.gen_loss_squirrel is not None:
                 avaraged_loss_fetches["gen_loss_squirrel"] = model.gen_loss_squirrel
-            if model.squirrel_discrim_loss:
+            if model.squirrel_discrim_loss is not None:
                 avaraged_loss_fetches["squirrel_discrim_loss"] = model.squirrel_discrim_loss
 
         with tf.name_scope("loss_fetches"):
@@ -1462,6 +1479,7 @@ def export(sess, output_dir):
 
 
 def export_visualization(visualizeDict, output_dir):
+    from tensorflow.contrib.tensorboard.plugins import projector
     latent_vectors = visualizeDict['latent_vectors']
     latent_vector_labels = visualizeDict['latent_vector_labels']
     image_paths = visualizeDict['image_paths']

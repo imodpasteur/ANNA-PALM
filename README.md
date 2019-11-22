@@ -19,7 +19,7 @@ ANNA-PALM has the following dependencies:
  * scipy
  * matplotlib
  * scikit-image
- * tensorflow==1.1.0
+ * tensorflow==1.12.0
  * imreg_dft
  * pytest
 
@@ -33,6 +33,12 @@ git clone https://github.com/imodpasteur/ANNA-PALM
 cd ANNA-PALM
 ```
 
+Create a virtual environment:
+```bash
+conda create -n anna-palm python=3.6.8 -y
+conda activate anna-palm
+```
+
 For a quick test running on CPU or you don't have a cuda compatible GPU, run the following command:
 ```bash
 pip install -r requirements.txt
@@ -40,10 +46,11 @@ pip install -r requirements.txt
 
 Or if you have an tensorflow compatible GPU, and you want to use GPU for training, run the following command:
 ```bash
+conda install cudatoolkit=9.0 cudnn -y
 pip install -r requirements-gpu.txt
 ```
 
-To test your installation, you could run the following code:
+To test your installation, you can run the following code:
 ```
 cd ANNA-PALM
 python run.py --workdir=./tmp_test --ngf=1 --ndf=1

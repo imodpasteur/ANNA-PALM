@@ -125,7 +125,7 @@ class Split(object):
             for s in self.slices:
                 sl = [slice(None)] * image.ndim
                 sl[self.axis] = s
-                ret.append(image[sl])
+                ret.append(image[tuple(sl)])
             return ret
         else:
             raise Exception("obj is not an numpy array")
