@@ -19,7 +19,7 @@ ANNA-PALM has the following dependencies:
  * scipy
  * matplotlib
  * scikit-image
- * tensorflow==1.1.0
+ * tensorflow==1.12.0
  * imreg_dft
  * pytest
 
