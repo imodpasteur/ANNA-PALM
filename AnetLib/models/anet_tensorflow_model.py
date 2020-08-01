@@ -404,6 +404,11 @@ class AnetModel():
                 fetches.update(self.averaged_loss_fetches)
             if should(opt.summary_freq):
                 fetches["summary"] = self.summary_merged
+                if (tf.test.is_gpu_available()):
+                    mem_usage = str(self.sess.run(tf.contrib.memory_stats.BytesInUse()))
+                    print("mem_usage= " + mem_usage)
+                else:
+                    print("Can't log memory usage")
             if should(opt.display_freq):
                 fetches["display"] = self.display_fetches
 

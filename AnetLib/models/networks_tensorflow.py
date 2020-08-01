@@ -2003,8 +2003,8 @@ def build_network(model_type, input_size, input_nc, output_nc, batch_size, use_r
         if model.gen_loss_SSIM is not None:
             tf.summary.scalar("generator_loss_SSIM", model.gen_loss_SSIM)
 
-        for var in tf.trainable_variables():
-            tf.summary.histogram(var.op.name + "/values", var)
+        #for var in tf.trainable_variables():
+            #tf.summary.histogram(var.op.name + "/values", var)
 
         _grads_and_vars = model.gen_grads_and_vars
         if model.discrim_grads_and_vars is not None:
