@@ -73,6 +73,63 @@ def conv(batch_input, out_channels, stride):
         conv = tf.nn.conv2d(padded_input, filter, [1, stride, stride, 1], padding="VALID")
         return conv
 
+def conv7x7(batch_input, out_channels, stride):
+    with tf.variable_scope("conv7x7"):
+        in_channels = batch_input.get_shape()[3]
+        filter = tf.get_variable("filter", [7, 7, in_channels, out_channels], dtype=tf.float32,
+                                 initializer=tf.random_normal_initializer(0, 0.02))
+        # [batch, in_height, in_width, in_channels], [filter_width, filter_height, in_channels, out_channels]
+        #     => [batch, out_height, out_width, out_channels]
+        padded_input = tf.pad(batch_input, [[0, 0], [3, 3], [3, 3], [0, 0]], mode="CONSTANT")
+        conv = tf.nn.conv2d(padded_input, filter, [1, stride, stride, 1], padding="VALID")
+        return conv
+
+
+def rev_block(in_1, in_2, reverse):
+    with tf.variable_scope("rev_block"):
+        if reverse:
+            # x2 = y2 - NN2(y1)
+            with tf.variable_scope("g"):
+                out_2 = in_2 - res_block(in_1)
+
+            # x1 = y1 - NN1(x2)
+            with tf.variable_scope("f"):
+                out_1 = in_1 - res_block(out_2)
+        else:
+            # y1 = x1 - NN1(x2)
+            with tf.variable_scope("f"):
+                out_1 = in_1 - res_block(in_2)
+
+            # y2 = x2 - NN2(y1)
+            with tf.variable_scope("g"):
+                out_2 = in_2 - res_block(out_1)
+
+        return [out_1, out_2]
+
+
+def res_block(in_1):
+    with tf.variable_scope("res_block"):
+        with tf.variable_scope("sub_1"):
+            out_1 = conv3x3(in_1)
+            out_1 = batchnorm(out_1)
+            out_1 = lrelu(out_1, 0.2)
+        with tf.variable_scope("sub_2"):
+            out_1 = conv3x3(out_1)
+            out_1 = batchnorm(out_1)
+            out_1 = out_1 + in_1
+            out_1 = lrelu(out_1, 0.2)
+        return out_1
+
+
+def conv3x3(batch_input):
+    with tf.variable_scope("conv3x3"):
+        in_channels = batch_input.get_shape()[3]
+        out_channels = in_channels
+        filter = tf.get_variable("filter", [3, 3, in_channels, out_channels], dtype=tf.float32,
+                                 initializer=tf.random_normal_initializer(0, 0.02))
+        padded_in_1 = tf.pad(batch_input, [[0, 0], [1, 1], [1, 1], [0, 0]], mode="CONSTANT")
+        out_1 = tf.nn.conv2d(padded_in_1, filter, [1, 1, 1, 1], padding="VALID")
+        return out_1
 
 def conv1x1(batch_input, out_channels):
     with tf.variable_scope("conv1x1"):
@@ -325,6 +382,218 @@ def tf_l1_loss(img1, img2):
 def tf_l2_loss(img1, img2):
     diff = tf.square(img1 - img2)
     return tf.reduce_mean(diff)
+
+def _rev_block_grad(x1, x2, dy1, dy2):
+    """Gradients without referring to the stored activation.
+    Args:
+      x1: Input activation 1.
+      x2: Input activation 2.
+      dy1: Output gradient 1.
+      dy2: Output gradient 2.
+    Returns:
+      dx1: Input gradient 1.
+      dx2: Input gradient 2.
+      w: List of variables.
+      dw: List of gradients towards the variables.
+    """
+
+    y1, y2 = rev_block(x1, x2, reverse=False)
+
+    # F function weights.
+    fw_names = []
+    num_layers = 2
+    for ii in range(1, num_layers + 1):
+        fw_names.append("rev_block/f/res_block/sub_{}/batchnorm/offset".format(ii))
+        fw_names.append("rev_block/f/res_block/sub_{}/batchnorm/scale".format(ii))
+        fw_names.append("rev_block/f/res_block/sub_{}/conv3x3/filter".format(ii))
+    fw_list = list(map(lambda x: tf.get_variable(x), fw_names))
+
+    # G function weights.
+    gw_names = []
+    for ii in range(1, num_layers + 1):
+        gw_names.append("rev_block/g/res_block/sub_{}/batchnorm/offset".format(ii))
+        gw_names.append("rev_block/g/res_block/sub_{}/batchnorm/scale".format(ii))
+        gw_names.append("rev_block/g/res_block/sub_{}/conv3x3/filter".format(ii))
+    gw_list = list(map(lambda x: tf.get_variable(x), gw_names))
+
+    dd1 = tf.gradients(y2, [y1] + gw_list, dy2, gate_gradients=True, stop_gradients=[x1, x2])
+    dy2_y1 = dd1[0]
+    dy1_plus = dy2_y1 + dy1
+    dgw = dd1[1:]
+    dd2 = tf.gradients(y1, [x1, x2] + fw_list, dy1_plus, gate_gradients=True, stop_gradients=[x1, x2])
+    dx1 = dd2[0]
+    dx2 = dd2[1]
+    dfw = dd2[2:]
+    dx2 += tf.gradients(x2, x2, dy2, gate_gradients=True, stop_gradients=[x1, x2])[0]
+
+    dw_list = list(dfw) + list(dgw)
+    w_list = list(fw_list) + list(gw_list)
+
+    # Inject dw dependency.
+    with tf.control_dependencies(dw_list):
+        return dx1, dx2, w_list, dw_list
+
+
+def _compute_revnet_gradients(y1, y2, dy1, dy2):
+    """Computes gradients.
+    Args:
+      y1: Output activation 1.
+      y2: Output activation 2.
+      dy1: Output gradient 1.
+      dy2: Output gradient 2.
+    Returns:
+      dx1: Input gradient 1.
+      dx2: Input gradient 2.
+      grads_and_vars: List of tuple of gradients and variables.
+    """
+    print("Manually building gradient graph.")
+    g = tf.get_default_graph()
+    tf.get_variable_scope().reuse_variables()
+    layers = [var for var in tf.trainable_variables() if var.name.startswith("generator/rev_core")]
+    layers.sort(key=lambda x: x.name, reverse=False)
+
+    print("sorting sone")
+
+    grads_list = []
+    vars_list = []
+
+    # New version, using single for-loop.
+    nlayers = 10
+    for ll in range(nlayers , 0, -1):
+        with tf.variable_scope("generator/rev_core_{}".format(ll)):
+            print("layer ", ll)
+            # Reconstruct input.
+            x1, x2 = rev_block(y1, y2, reverse=True)
+
+            # Rerun the layer, and get gradients.
+            dx1, dx2, w_list, w_grad = _rev_block_grad(
+                x1, x2,
+                dy1, dy2)
+
+            y1, y2, dy1, dy2 = x1, x2, dx1, dx2
+
+            grads_list.extend(w_grad)
+            vars_list.extend(w_list)
+
+    _wd_hidden = 0.01
+
+    # Add weight decay.
+    def add_wd(x):
+        g, w = x[0], x[1]
+        assert _wd_hidden > 0.0, "Not applying weight decay"
+        if w.name.endswith("w:0") and _wd_hidden > 0.0:
+            print("Adding weight decay {:.4e} for variable {}".format(
+                _wd_hidden, x[1].name))
+            return g + _wd_hidden * w, w
+        else:
+            return g, w
+
+    # Always gate gradients to avoid unwanted behaviour.
+    return dx1, dx2, list(map(add_wd, zip(tf.tuple(grads_list), vars_list)))
+
+
+def generate_revgan_generator(generator_inputs, generator_outputs_channels, ngf=64, dropout_prob=0.5, output_num=1,
+                              activation=tf.tanh, use_resize_conv=False, lr_inputs=None, lr_pos=0):
+    layers = []
+    print(generator_inputs.shape)
+    # encoder_1: [batch, 256, 256, in_channels] => [batch, 256, 256, ngf]
+    with tf.variable_scope("x_encoder_1"):
+        if lr_inputs is not None and lr_pos == 0:
+            generator_inputs = tf.concat([generator_inputs, lr_inputs], axis=3)
+        convolved = conv7x7(generator_inputs, ngf, stride=1)
+        output = batchnorm(convolved)
+        output = lrelu(output, 0.2)
+        if lr_inputs is not None and lr_pos == 1:
+            layers.append(tf.concat([lr_inputs, output], axis=3))
+        else:
+            layers.append(output)
+    print(output.shape)
+    layer_specs = [
+        ngf * 2,  # encoder_2: [batch, 256, 256, ngf] => [batch, 128, 128, ngf * 2]
+        ngf * 4,  # encoder_3: [batch, 128, 128, ngf * 2] => [batch, 64, 64, ngf * 4]
+        16
+    ]
+
+    for out_channels in layer_specs:
+        with tf.variable_scope("x_encoder_%d" % (len(layers) + 1)):
+
+            # [batch, in_height, in_width, in_channels] => [batch, in_height/2, in_width/2, out_channels]
+            convolved = conv(layers[-1], out_channels, stride=2)
+            output = batchnorm(convolved)
+            output = lrelu(output, 0.2)
+            if lr_inputs is not None and lr_pos == len(layers) + 1:
+                layers.append(tf.concat([lr_inputs, output], axis=3))
+            else:
+                layers.append(output)
+        print(output.shape)
+
+    in_1, in_2 = tf.split(layers[-1], num_or_size_splits=2, axis=3)
+    in_1 = tf.identity(in_1, name="revnet_input_1")
+    in_2 = tf.identity(in_2, name="revnet_input_2")
+    layers.append([in_1, in_2])
+    rev_block_num = 10
+    for i in range(rev_block_num):
+        with tf.variable_scope("rev_core_%d" % (i + 1)):
+            # [batch, in_height, in_width, in_channels] => [batch, in_height/2, in_width/2, out_channels]
+            in_1, in_2 = layers[-1]
+            out_1, out_2 = rev_block(in_1, in_2, reverse=False)
+            output = [out_1, out_2]
+
+            layers.append(output)
+    out_1, out_2 = layers[-1]
+    out_1 = tf.identity(out_1, name="revnet_output_1")
+    out_2 = tf.identity(out_2, name="revnet_output_2")
+    layers.append(tf.concat([out_1, out_2], 3))
+
+    layer_specs = [
+        (16,None),
+        (ngf * 2, dropout_prob),  # decoder_3: [batch, 32, 32, ngf * 4 * 2] => [batch, 64, 64, ngf * 2 * 2]
+        (ngf, None),  # decoder_2: [batch, 64, 64, ngf * 2 * 2] => [batch, 128, 128, ngf * 2]
+    ]
+
+    for decoder_layer, (out_channels, dropout) in enumerate(layer_specs):
+        with tf.variable_scope("y_decoder_%d" % (decoder_layer + 1)):
+
+            input = layers[-1]
+
+            rectified = tf.nn.relu(input)
+            # [batch, in_height, in_width, in_channels] => [batch, in_height*2, in_width*2, out_channels]
+            if use_resize_conv:
+                output = resizeconv(rectified, out_channels)
+            else:
+                output = deconv(rectified, out_channels)
+            output = batchnorm(output)
+
+            if dropout is not None:
+                output = tf.nn.dropout(output, keep_prob=1 - dropout)
+
+            layers.append(output)
+
+    if output_num == 1:
+        # decoder_1: [batch, 128, 128, ngf * 2] => [batch, 256, 256, generator_outputs_channels]
+        with tf.variable_scope("y_decoder_%d" % (len(layer_specs) + 1)):
+            input = layers[-1]
+            rectified = tf.nn.relu(input)
+            output = conv7x7(rectified, generator_outputs_channels, stride=1)
+            if activation:
+                output = activation(output)
+            layers.append(output)
+        return output
+    else:
+        layer_1 = layers[-1]
+        outputs = []
+        for i in range(output_num):
+            # decoder_1: [batch, 128, 128, ngf * 2] => [batch, 256, 256, generator_outputs_channels]
+            with tf.variable_scope("y_decoder_%d" % (len(layer_specs) + 1) + str(i)):
+                input = layer_1
+                rectified = tf.nn.relu(input)
+                output = conv7x7(rectified, generator_outputs_channels, stride=1)
+                if activation:
+                    output = activation(output)
+                outputs.append(output)
+        outputs = tuple(outputs)
+        return outputs
+
 
 def generate_unet(generator_inputs, generator_outputs_channels, ngf=64, bayesian_dropout=False, dropout_prob=0.5, output_num=1, activation=tf.tanh, use_resize_conv=False, lr_inputs=None, lr_pos=0):
     layers = []
@@ -1095,6 +1364,284 @@ def create_pix2pix_model(inputs, targets, controls, channel_masks, ngf=64, ndf=6
         train=tf.group(update_losses, incr_global_step, gen_train),
     )
 
+def create_revgan_model(inputs, targets, controls, channel_masks, ngf=64, ndf=64, discriminator_layer_num=3,
+                        output_uncertainty=False,
+                        bayesian_dropout=False, use_resize_conv=False, no_lsgan=False, dropout_prob=0.5,
+                        gan_weight=1.0, l1_weight=40.0, lr=0.0002, beta1=0.5, lambda_tv=0, use_ssim=False,
+                        use_punet=False, control_nc=0, control_classes=0, use_gaussd=False, lr_nc=0, lr_scale=1,
+                        use_squirrel=False, squirrel_weight=20.0, lr_loss_mode='lr_inputs'):
+    with tf.name_scope("generator"):
+        with tf.variable_scope("generator") as scope:
+            out_channels = int(targets.get_shape()[-1])
+            if use_punet:
+                assert control_nc > 0
+                if control_classes is not None and control_classes > 0:
+                    encoded = one_hot_encoding(controls[:, :, :, 0:1], classes=control_classes)
+                    if control_nc > 1:
+                        controls = tf.concat([encoded, controls[:, :, :, 1:]], axis=3)
+                    else:
+                        controls = encoded
+            else:
+                controls = None
+
+            raw_inputs = inputs
+            targets = preprocess(targets, mode='min_max[0,1]', range_lim=TARGET_RANGE_LIM)
+            if lr_nc > 0:
+                inputs_sr, scaled_lr_inputs = raw_inputs[:, :, :, :-lr_nc], preprocess(raw_inputs[:, :, :, -lr_nc:],
+                                                                                       mode='min_max[0,1]',
+                                                                                       range_lim=LR_RANGE_LIM)
+                _b, _h, _w, _ch = scaled_lr_inputs.get_shape().as_list()
+                lr_pos = int(np.log2(1.0 / lr_scale))
+                lr_inputs = deprocess(
+                    tf.image.resize_images(scaled_lr_inputs, size=(_h // (2 ** lr_pos), _w // (2 ** lr_pos)),
+                                           method=tf.image.ResizeMethod.BILINEAR))
+                inputs = tf.concat([preprocess(inputs_sr, mode='mean_std'), scaled_lr_inputs], axis=3)
+            else:
+                scaled_lr_inputs = None
+                lr_inputs = None
+                inputs_sr = inputs
+                inputs = preprocess(inputs, mode='mean_std')
+            inputs = inputs * channel_masks
+
+            # generate generator output
+            # outputs = generate_generator(inputs, out_channels, ngf, bayesian_dropout=bayesian_dropout, dropout_prob=dropout_prob, output_num=output_num, use_resize_conv=use_resize_conv)
+            if output_uncertainty:
+                output_num = 2
+
+                outputs, log_sigma_square = generate_revgan_generator(inputs, out_channels, ngf,
+                                                                      dropout_prob=dropout_prob, output_num=output_num,
+                                                                      activation=None, use_resize_conv=use_resize_conv)
+                # apply activation
+                outputs, log_sigma_square = tf.tanh(outputs), log_sigma_square
+                sigma = tf.sqrt(tf.exp(log_sigma_square))
+            else:
+                output_num = 1
+
+                outputs = generate_revgan_generator(inputs, out_channels, ngf,
+                                                    dropout_prob=dropout_prob, output_num=output_num,
+                                                    use_resize_conv=use_resize_conv)
+                sigma = None
+
+    # with tf.name_scope("generator_reverse"):
+    #    with tf.variable_scope("generator", reuse=True) as scope:
+    #        outputs = generate_revgan_generator(inputs, out_channels, ngf, dropout_prob=dropout_prob, output_num=output_num, use_resize_conv=use_resize_conv)
+
+    with tf.name_scope("discriminator_inputs"):
+        _, h, w, _ = inputs.get_shape().as_list()
+        if use_punet:
+            control_channels = tf.tile(controls, [1, h, w, 1])
+            inputs = tf.concat([inputs, control_channels], axis=3)
+
+    # create two copies of discriminator, one for real pairs and one for fake pairs
+    # they share the same underlying variables
+    with tf.name_scope("real_discriminator"):
+        with tf.variable_scope("discriminator"):
+            # 2x [batch, height, width, channels] => [batch, 30, 30, 1]
+            if use_gaussd:
+                predict_real = generate_discriminator(tf_gauss_conv(inputs), tf_gauss_conv(targets), ndf,
+                                                      discriminator_layer_num=discriminator_layer_num,
+                                                      no_lsgan=no_lsgan)
+            else:
+                predict_real = generate_discriminator(inputs, targets, ndf,
+                                                      discriminator_layer_num=discriminator_layer_num,
+                                                      no_lsgan=no_lsgan)
+
+    with tf.name_scope("fake_discriminator"):
+        with tf.variable_scope("discriminator", reuse=True):
+            # 2x [batch, height, width, channels] => [batch, 30, 30, 1]
+            if use_gaussd:
+                predict_fake = generate_discriminator(tf_gauss_conv(inputs), tf_gauss_conv(outputs), ndf,
+                                                      discriminator_layer_num=discriminator_layer_num,
+                                                      no_lsgan=no_lsgan)
+            else:
+                predict_fake = generate_discriminator(inputs, outputs, ndf,
+                                                      discriminator_layer_num=discriminator_layer_num,
+                                                      no_lsgan=no_lsgan)
+
+    with tf.name_scope("discriminator_loss"):
+        # minimizing -tf.log will try to get inputs to 1
+        # predict_real => 1
+        # predict_fake => 0
+        if not no_lsgan:
+            discrim_loss = tf.reduce_mean(tf.square(predict_real - 1)) + tf.reduce_mean(tf.square(predict_fake))
+        else:
+            discrim_loss = tf.reduce_mean(-(tf.log(predict_real + EPS) + tf.log(1 - predict_fake + EPS)))
+
+    """with tf.name_scope("generator_x_cycle"):
+        # generate x_cycle ouput ????
+    with tf.name_scope("generator_y_cycle"):
+        # generate y_cycle output ????"""
+
+    # with tf.name_scope("generator_reverse"):
+    # generate reverse output
+
+    """if use_squirrel:
+        ndfs = ndf//8 if ndf//8>0 else 1
+        _squirrel_train, _squirrel_output_fetches = generate_squirrel_model(lr_inputs, outputs, targets, lr_scale=lr_scale, ndf=ndfs, lr=lr, beta1=beta1, dropout_prob=dropout_prob, lr_loss_mode=lr_loss_mode)
+        squirrel_discrim_train, squirrel_discrim_grads_and_vars = _squirrel_train
+        squirrel_discrim_loss, gen_loss_squirrel, squirrel_error_map, lr_predict_real, lr_predict_fake = _squirrel_output_fetches
+    else:
+        squirrel_discrim_train, squirrel_discrim_grads_and_vars = (None, ) * 2
+        squirrel_discrim_loss, gen_loss_squirrel, squirrel_error_map, lr_predict_real, lr_predict_fake = (None, ) * 5"""
+
+    dp_outputs = deprocess(outputs)
+    dp_targets = deprocess(targets)
+    with tf.name_scope("generator_loss"):
+        # predict_fake => 1
+        # abs(targets - outputs) => 0
+        gen_loss_L2 = None
+        gen_loss_L1 = None
+        gen_loss_SSIM = None
+        if not no_lsgan:
+            if output_uncertainty:
+                # "VALID" mode in convolution only ever drops the right-most columns (or bottom-most rows).
+                scaled_log_sigma_square = tf.nn.avg_pool(log_sigma_square, (1, 2 ** 3, 2 ** 3, 1),
+                                                         [1, 2 ** 3, 2 ** 3, 1], padding="VALID")[:, :-2, :-2, :]
+                gen_loss_GAN = tf.reduce_mean(
+                    tf.square(predict_fake - 1) * tf.exp(-scaled_log_sigma_square) + scaled_log_sigma_square)
+            else:
+                gen_loss_GAN = tf.reduce_mean(tf.square(predict_fake - 1))
+        else:
+            gen_loss_GAN = tf.reduce_mean(-tf.log(predict_fake + EPS))
+        if use_ssim:
+            if output_uncertainty:
+                if use_ssim == 'ms_ssim':
+                    ms_ssim_map = tf_ms_ssim(dp_targets, dp_outputs)
+                    gen_loss_SSIM = 1 - tf.reduce_mean(ms_ssim_map)
+                    gen_loss = gen_loss_SSIM + tf.reduce_mean(
+                        (1 - ms_ssim_map) * tf.exp(-log_sigma_square) + log_sigma_square)
+                elif use_ssim == 'ssim_l1':
+                    ssim_l1, ssim_loss = tf_ssim_l1_loss(dp_targets, dp_outputs, mean_metric=False, filter_size=21,
+                                                         filter_sigma=3, alpha=0.84)
+                    gen_loss = tf.reduce_mean(ssim_l1 * tf.exp(-log_sigma_square) + log_sigma_square)
+                    gen_loss_SSIM = tf.reduce_mean(ssim_loss)
+                elif use_ssim == 'ms_ssim_l1':
+                    raise NotImplemented
+                elif use_ssim == 'io_ssim':
+                    raise NotImplemented
+                elif use_ssim == 'ssim_l1_fpp':
+                    raise NotImplemented
+                else:
+                    gen_loss = tf.reduce_mean((1 - tf_ssim(dp_targets, dp_outputs, mean_metric=False, filter_size=21,
+                                                           filter_sigma=3)) * tf.exp(
+                        -log_sigma_square) + log_sigma_square)
+            else:
+                if use_ssim == 'ms_ssim':
+                    gen_loss_SSIM = 1 - tf_ms_ssim(dp_targets, dp_outputs)
+                    gen_loss = gen_loss_SSIM
+                elif use_ssim == 'ms_ssim_l1':
+                    gen_loss = tf_ms_ssim_l1_loss(dp_targets, dp_outputs)
+                    gen_loss_SSIM = gen_loss
+                elif use_ssim == 'ssim_l1':
+                    gen_loss, ssim_loss = tf_ssim_l1_loss(dp_targets, dp_outputs, mean_metric=True, filter_size=21,
+                                                          filter_sigma=3, alpha=0.84)
+                    gen_loss_SSIM = ssim_loss
+                elif use_ssim == 'io_ssim':
+                    raise NotImplemented
+                elif use_ssim == 'ssim_l1_fpp':
+                    assert controls is not None
+                    ctrl = controls[:, :, :, -1:]
+                    # ssim_l1, ssim_loss = tf_ssim_l1_loss(targets, outputs, mean_metric=True, filter_size=21, filter_sigma=3, alpha=0.84)
+                    # gen_loss_L2 = ssim_l1 + tf.reduce_mean(tf.nn.relu((outputs-targets) /2 * ctrl)) * 10.0
+                    ssim_l1, ssim_loss = tf_ssim_l1_loss(dp_targets, dp_outputs, mean_metric=False, filter_size=21,
+                                                         filter_sigma=3, alpha=0.84)
+                    gen_loss = tf.reduce_mean(ssim_l1) + tf.reduce_mean(dp_outputs * ssim_l1 * ctrl) * 2
+                    gen_loss_SSIM = tf.reduce_mean(ssim_loss)
+                else:
+                    gen_loss = tf.reduce_mean(
+                        1 - tf_ssim(dp_targets, dp_outputs, mean_metric=False, filter_size=21, filter_sigma=3))
+        else:
+            if output_uncertainty:
+                gen_loss = tf.reduce_mean(tf.abs(targets - outputs) * tf.exp(-log_sigma_square) + log_sigma_square)
+            else:
+                gen_loss_L1 = tf.reduce_mean(tf.abs(targets - outputs))
+                gen_loss = gen_loss_L1
+
+        if lambda_tv > 0:
+            loss_tv = lambda_tv * tf.reduce_mean(tf.image.total_variation(outputs))
+            gen_loss = gen_loss + loss_tv
+
+        total_loss = gen_loss_GAN * gan_weight + gen_loss * l1_weight
+
+        if gen_loss_SSIM is None:
+            gen_loss_SSIM = 1 - tf_ssim(dp_targets, dp_outputs, mean_metric=True, filter_size=21, filter_sigma=3)
+        if gen_loss_L2 is None:
+            gen_loss_L2 = tf.reduce_mean(tf.square(targets - outputs))
+
+    with tf.name_scope("discriminator_train"):
+        discrim_tvars = [var for var in tf.trainable_variables() if var.name.startswith("discriminator")]
+        discrim_optim = tf.train.AdamOptimizer(lr, beta1)
+        discrim_grads_and_vars = discrim_optim.compute_gradients(discrim_loss, var_list=discrim_tvars)
+        discrim_train = discrim_optim.apply_gradients(discrim_grads_and_vars)
+
+    with tf.name_scope("generator_train"):
+        dependencies = [discrim_train]
+        with tf.control_dependencies(dependencies):
+            dec_vars = [var for var in tf.trainable_variables() if var.name.startswith("generator/y_decoder")]
+            dec_grads = tf.gradients(total_loss, dec_vars)
+            dec_grads_and_vars = np.array(list(zip(dec_grads, dec_vars)))
+
+            rev_out_1_var = tf.get_default_graph().get_tensor_by_name("generator/generator/revnet_output_1:0")
+            rev_out_1_grad = tf.gradients(total_loss, rev_out_1_var)
+            rev_out_2_var = tf.get_default_graph().get_tensor_by_name("generator/generator/revnet_output_2:0")
+            rev_out_2_grad = tf.gradients(total_loss, rev_out_2_var)
+            dy1, dy2, rev_grads_and_vars = _compute_revnet_gradients(rev_out_1_var, rev_out_2_var, rev_out_1_grad, rev_out_2_grad)
+            rev_grads_and_vars = np.array(rev_grads_and_vars)
+
+            enc_vars = [var for var in tf.trainable_variables() if var.name.startswith("generator/x_encoder")]
+            rev_in_1_var = tf.get_default_graph().get_tensor_by_name("generator/generator/revnet_input_1:0")
+            rev_in_2_var = tf.get_default_graph().get_tensor_by_name("generator/generator/revnet_input_2:0")
+            enc_grads = tf.gradients([rev_in_1_var, rev_in_2_var], enc_vars, [dy1, dy2])
+            enc_grads_and_vars = np.array(list(zip(enc_grads, enc_vars)))
+
+            gen_grads_and_vars = np.concatenate((dec_grads_and_vars, rev_grads_and_vars, enc_grads_and_vars), axis=0)
+            gen_grads_and_vars = gen_grads_and_vars.tolist()
+
+
+            with tf.variable_scope(tf.get_variable_scope(), reuse=tf.AUTO_REUSE):
+                gen_optim = tf.train.AdamOptimizer(lr, beta1)
+                gen_train = gen_optim.apply_gradients(gen_grads_and_vars)
+
+            # gen_train2 = revnet._train_op
+            # gen_train = tf.group(gen_train1, gen_train2)
+    with tf.variable_scope(tf.get_variable_scope(), reuse=tf.AUTO_REUSE):
+        ema = tf.train.ExponentialMovingAverage(decay=0.99)
+        _losses = [discrim_loss, gen_loss_GAN, gen_loss, gen_loss_SSIM, gen_loss_L2]
+        update_losses = ema.apply(list(set(_losses)))
+
+        global_step = tf.train.get_or_create_global_step()
+        incr_global_step = tf.assign(global_step, global_step + 1)
+
+    return Model(
+        type='GAN',
+        predict_real=predict_real,
+        predict_fake=predict_fake,
+        inputs=inputs_sr,
+        lr_inputs=lr_inputs,
+        lr_predict_real=None,
+        lr_predict_fake=None,
+        squirrel_error_map=None,
+        squirrel_discrim_loss=None,
+        squirrel_discrim_grads_and_vars=None,
+        discrim_loss=ema.average(discrim_loss),
+        discrim_grads_and_vars=discrim_grads_and_vars,
+        gen_loss_GAN=ema.average(gen_loss_GAN),
+        gen_loss=ema.average(gen_loss),
+        gen_loss_L1=gen_loss_L1,
+        gen_loss_L2=ema.average(gen_loss_L2),
+        gen_loss_SSIM=ema.average(gen_loss_SSIM),
+        gen_loss_squirrel=None,
+        gen_grads_and_vars=gen_grads_and_vars,
+        outputs=dp_outputs,
+        targets=dp_targets,
+        losses={'gen_loss': gen_loss, 'discrim_loss': discrim_loss,
+                'gen_loss_L1': gen_loss_L1, 'gen_loss_L2': gen_loss_L2,
+                'gen_loss_SSIM': gen_loss_SSIM, 'gen_loss_squirrel': None,
+                'squirrel_discrim_loss': None, 'gen_loss_GAN': gen_loss_GAN},
+        uncertainty=sigma,
+        squirrel_discrim_train=None,
+        train=tf.group(update_losses, incr_global_step, gen_train),
+    )
 
 def setup_data_loader(data_source, enqueue_data, shuffle=True, batch_size=1, input_size=256, input_channel=1, target_channel=1, repeat=1, control_nc=0, use_mixup=False, seed=123):
     stop_queue_event = threading.Event()
@@ -1231,6 +1778,8 @@ def build_network(model_type, input_size, input_nc, output_nc, batch_size, use_r
     # inputs and targets are [batch_size, height, width, channels]
     if model_type == 'a_net' or model_type == 'anet':
         model = create_pix2pix_model(inputs_batch, targets_batch, control_batch, channel_mask_batch, ngf=ngf, ndf=ndf, dropout_prob=dropout_prob, bayesian_dropout=False, use_resize_conv=use_resize_conv, gan_weight=gan_weight, l1_weight=l1_weight, lr=lr, beta1=beta1, lambda_tv=lambda_tv, use_ssim='ms_ssim_l1', use_punet=True, control_nc=control_nc, control_classes=control_classes, use_gaussd=use_gaussd, lr_nc=lr_nc, lr_scale=lr_scale, use_squirrel=lr_nc>0, lr_loss_mode=lr_loss_mode, squirrel_weight=squirrel_weight)
+    elif model_type == 'revgan':
+        model = create_revgan_model(inputs_batch, targets_batch, control_batch, channel_mask_batch, ngf=ngf, ndf=ndf, dropout_prob=dropout_prob, bayesian_dropout=False, use_resize_conv=use_resize_conv, gan_weight=gan_weight, l1_weight=l1_weight, lr=lr, beta1=beta1, lambda_tv=lambda_tv, use_ssim='ms_ssim_l1', use_punet=True, control_nc=control_nc, control_classes=control_classes, use_gaussd=use_gaussd, lr_nc=lr_nc, lr_scale=lr_scale, use_squirrel=0, lr_loss_mode=lr_loss_mode, squirrel_weight=0)
     elif model_type == 'unet':
         model = create_unet_model(inputs_batch, targets_batch, control_batch, channel_mask_batch, ngf=ngf, ndf=ndf, dropout_prob=dropout_prob, bayesian_dropout=False, use_resize_conv=use_resize_conv, lr=lr, beta1=beta1, lambda_tv=lambda_tv)
     elif model_type == 'punet':

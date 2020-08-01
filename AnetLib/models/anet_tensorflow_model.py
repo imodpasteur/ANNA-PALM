@@ -75,7 +75,7 @@ class AnetModel():
         with tf.name_scope("parameter_count"):
             parameter_count = tf.reduce_sum([tf.reduce_prod(tf.shape(v)) for v in tf.trainable_variables()])
 
-        writer = tf.summary.FileWriter(logdir=self.opt.checkpoints_dir, graph=tf.get_default_graph())
+        writer = tf.summary.FileWriter(logdir=self.opt.tb_dir, graph=tf.get_default_graph())
         writer.flush()
 
         # logdir = self.opt.workdir if (opt.trace_freq > 0 or opt.summary_freq > 0) else None
@@ -365,7 +365,7 @@ class AnetModel():
                 self._current_report[k] = v
 
     def train(self, data_source_train, data_source_test=None, epoch_callback=None, step_callback=None, transform=None, cached=True, max_epochs=None, max_steps=None, verbose=1):
-        train_writer = tf.summary.FileWriter(self.opt.checkpoints_dir, self.sess.graph)
+        train_writer = tf.summary.FileWriter(self.opt.tb_dir, self.sess.graph)
 
         opt = self.opt
         queue_start, queue_stop = networks.setup_data_loader(data_source_train, self.enqueue_data, shuffle=True, control_nc=self.opt.control_nc, use_mixup=self.opt.use_mixup, seed=self.opt.seed)

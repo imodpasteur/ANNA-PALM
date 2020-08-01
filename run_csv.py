@@ -3,12 +3,13 @@ import tensorflow as tf
 from AnetLib.options.train_options import Options
 from AnetLib.models.models import create_model
 from smlm_datasets import create_data_sources
+from datetime import datetime
 
 default_workdir = './output/' + os.path.basename(sys.argv[0])
 opt = Options().parse()
 opt.fineSize = 512
 opt.batchSize = 1  # batchSize = 1
-opt.model = 'a_net_tensorflow'
+opt.model = 'revgan_tensorflow'
 opt.dim_ordering = 'channels_last'
 opt.display_freq = 500
 opt.save_latest_freq = 1000
@@ -25,6 +26,9 @@ opt.add_data_type_control = True
 opt.add_lr_channel = False
 opt.use_random_channel_mask = True
 opt.lr_loss_mode = 'lr_predict'
+
+now = datetime.now()
+opt.tb_dir = os.path.join(opt.tb_dir , "log_" + now.strftime("%Y%m%d-%H%M%S"))
 
 if opt.phase == 'train':
     sources = create_data_sources('TransformedCSVImages', opt)
