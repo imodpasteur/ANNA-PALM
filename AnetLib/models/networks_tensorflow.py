@@ -434,7 +434,7 @@ def _rev_block_grad(x1, x2, dy1, dy2):
         return dx1, dx2, w_list, dw_list
 
 
-def _compute_revnet_gradients(y1, y2, dy1, dy2):
+def _compute_revnet_gradients(y1, y2, dy1, dy2, rev_layers):
     """Computes gradients.
     Args:
       y1: Output activation 1.
@@ -452,14 +452,12 @@ def _compute_revnet_gradients(y1, y2, dy1, dy2):
     layers = [var for var in tf.trainable_variables() if var.name.startswith("generator/rev_core")]
     layers.sort(key=lambda x: x.name, reverse=False)
 
-    print("sorting sone")
-
     grads_list = []
     vars_list = []
 
     # New version, using single for-loop.
-    nlayers = 10
-    for ll in range(nlayers , 0, -1):
+    nlayers = rev_layers
+    for ll in range(nlayers, 0, -1):
         with tf.variable_scope("generator/rev_core_{}".format(ll)):
             print("layer ", ll)
             # Reconstruct input.
@@ -492,7 +490,7 @@ def _compute_revnet_gradients(y1, y2, dy1, dy2):
     return dx1, dx2, list(map(add_wd, zip(tf.tuple(grads_list), vars_list)))
 
 
-def generate_revgan_generator(generator_inputs, generator_outputs_channels, ngf=64, dropout_prob=0.5, output_num=1,
+def generate_revgan_generator(generator_inputs, generator_outputs_channels, rev_layers, ngf=64, dropout_prob=0.5, output_num=1,
                               activation=tf.tanh, use_resize_conv=False, lr_inputs=None, lr_pos=0):
     layers = []
     print(generator_inputs.shape)
@@ -511,7 +509,6 @@ def generate_revgan_generator(generator_inputs, generator_outputs_channels, ngf=
     layer_specs = [
         ngf * 2,  # encoder_2: [batch, 256, 256, ngf] => [batch, 128, 128, ngf * 2]
         ngf * 4,  # encoder_3: [batch, 128, 128, ngf * 2] => [batch, 64, 64, ngf * 4]
-        16
     ]
 
     for out_channels in layer_specs:
@@ -531,7 +528,7 @@ def generate_revgan_generator(generator_inputs, generator_outputs_channels, ngf=
     in_1 = tf.identity(in_1, name="revnet_input_1")
     in_2 = tf.identity(in_2, name="revnet_input_2")
     layers.append([in_1, in_2])
-    rev_block_num = 10
+    rev_block_num = rev_layers
     for i in range(rev_block_num):
         with tf.variable_scope("rev_core_%d" % (i + 1)):
             # [batch, in_height, in_width, in_channels] => [batch, in_height/2, in_width/2, out_channels]
@@ -546,7 +543,6 @@ def generate_revgan_generator(generator_inputs, generator_outputs_channels, ngf=
     layers.append(tf.concat([out_1, out_2], 3))
 
     layer_specs = [
-        (16,None),
         (ngf * 2, dropout_prob),  # decoder_3: [batch, 32, 32, ngf * 4 * 2] => [batch, 64, 64, ngf * 2 * 2]
         (ngf, None),  # decoder_2: [batch, 64, 64, ngf * 2 * 2] => [batch, 128, 128, ngf * 2]
     ]
@@ -1369,7 +1365,7 @@ def create_revgan_model(inputs, targets, controls, channel_masks, ngf=64, ndf=64
                         bayesian_dropout=False, use_resize_conv=False, no_lsgan=False, dropout_prob=0.5,
                         gan_weight=1.0, l1_weight=40.0, lr=0.0002, beta1=0.5, lambda_tv=0, use_ssim=False,
                         use_punet=False, control_nc=0, control_classes=0, use_gaussd=False, lr_nc=0, lr_scale=1,
-                        use_squirrel=False, squirrel_weight=20.0, lr_loss_mode='lr_inputs'):
+                        use_squirrel=False, squirrel_weight=20.0, lr_loss_mode='lr_inputs', rev_layer_num=10):
     with tf.name_scope("generator"):
         with tf.variable_scope("generator") as scope:
             out_channels = int(targets.get_shape()[-1])
@@ -1408,7 +1404,7 @@ def create_revgan_model(inputs, targets, controls, channel_masks, ngf=64, ndf=64
             if output_uncertainty:
                 output_num = 2
 
-                outputs, log_sigma_square = generate_revgan_generator(inputs, out_channels, ngf,
+                outputs, log_sigma_square = generate_revgan_generator(inputs, out_channels, rev_layer_num, ngf,
                                                                       dropout_prob=dropout_prob, output_num=output_num,
                                                                       activation=None, use_resize_conv=use_resize_conv)
                 # apply activation
@@ -1417,7 +1413,7 @@ def create_revgan_model(inputs, targets, controls, channel_masks, ngf=64, ndf=64
             else:
                 output_num = 1
 
-                outputs = generate_revgan_generator(inputs, out_channels, ngf,
+                outputs = generate_revgan_generator(inputs, out_channels, rev_layer_num, ngf,
                                                     dropout_prob=dropout_prob, output_num=output_num,
                                                     use_resize_conv=use_resize_conv)
                 sigma = None
@@ -1585,7 +1581,7 @@ def create_revgan_model(inputs, targets, controls, channel_masks, ngf=64, ndf=64
             rev_out_1_grad = tf.gradients(total_loss, rev_out_1_var)
             rev_out_2_var = tf.get_default_graph().get_tensor_by_name("generator/generator/revnet_output_2:0")
             rev_out_2_grad = tf.gradients(total_loss, rev_out_2_var)
-            dy1, dy2, rev_grads_and_vars = _compute_revnet_gradients(rev_out_1_var, rev_out_2_var, rev_out_1_grad, rev_out_2_grad)
+            dy1, dy2, rev_grads_and_vars = _compute_revnet_gradients(rev_out_1_var, rev_out_2_var, rev_out_1_grad, rev_out_2_grad, rev_layer_num)
             rev_grads_and_vars = np.array(rev_grads_and_vars)
 
             enc_vars = [var for var in tf.trainable_variables() if var.name.startswith("generator/x_encoder")]
@@ -2003,8 +1999,8 @@ def build_network(model_type, input_size, input_nc, output_nc, batch_size, use_r
         if model.gen_loss_SSIM is not None:
             tf.summary.scalar("generator_loss_SSIM", model.gen_loss_SSIM)
 
-        #for var in tf.trainable_variables():
-            #tf.summary.histogram(var.op.name + "/values", var)
+        '''for var in tf.trainable_variables():
+            tf.summary.histogram(var.op.name + "/values", var)
 
         _grads_and_vars = model.gen_grads_and_vars
         if model.discrim_grads_and_vars is not None:
@@ -2012,7 +2008,7 @@ def build_network(model_type, input_size, input_nc, output_nc, batch_size, use_r
         if model.squirrel_discrim_grads_and_vars is not None:
             _grads_and_vars = _grads_and_vars + model.squirrel_discrim_grads_and_vars
         for grad, var in _grads_and_vars:
-            tf.summary.histogram(var.op.name + "/gradients", grad)
+            tf.summary.histogram(var.op.name + "/gradients", grad)'''
 
         summary_merged = tf.summary.merge_all()
     else:

@@ -406,7 +406,9 @@ class AnetModel():
                 fetches["summary"] = self.summary_merged
                 if (tf.test.is_gpu_available()):
                     mem_usage = str(self.sess.run(tf.contrib.memory_stats.BytesInUse()))
+                    max_mem_usage = str(self.sess.run(tf.contrib.memory_stats.MaxBytesInUse()))
                     print("mem_usage= " + mem_usage)
+                    print("max_mem_usage= " + max_mem_usage)
                 else:
                     print("Can't log memory usage")
             if should(opt.display_freq):
