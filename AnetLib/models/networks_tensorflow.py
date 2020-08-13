@@ -416,7 +416,7 @@ def _rev_block_grad(x1, x2, dy1, dy2):
         gw_names.append("rev_block/g/res_block/sub_{}/conv3x3/filter".format(ii))
     gw_list = list(map(lambda x: tf.get_variable(x), gw_names))
 
-    dd1 = tf.gradients(y2, [y1] + gw_list, dy2, gate_gradients=True, stop_gradients=[x1, x2])
+    dd1 = tf.gradients(y2, [y1] + gw_list, dy2, gate_gradients=True, stop_gradients=[x1, x2, y1])
     dy2_y1 = dd1[0]
     dy1_plus = dy2_y1 + dy1
     dgw = dd1[1:]
@@ -446,48 +446,51 @@ def _compute_revnet_gradients(y1, y2, dy1, dy2, rev_layers):
       dx2: Input gradient 2.
       grads_and_vars: List of tuple of gradients and variables.
     """
-    print("Manually building gradient graph.")
-    g = tf.get_default_graph()
-    tf.get_variable_scope().reuse_variables()
-    layers = [var for var in tf.trainable_variables() if var.name.startswith("generator/rev_core")]
-    layers.sort(key=lambda x: x.name, reverse=False)
+    with tf.name_scope("manual_gradients"):
+        print("Manually building gradient graph.")
+        g = tf.get_default_graph()
+        tf.get_variable_scope().reuse_variables()
+        layers = [var for var in tf.trainable_variables() if var.name.startswith("generator/rev_core")]
+        layers.sort(key=lambda x: x.name, reverse=False)
 
-    grads_list = []
-    vars_list = []
+        grads_list = []
+        vars_list = []
 
-    # New version, using single for-loop.
-    nlayers = rev_layers
-    for ll in range(nlayers, 0, -1):
-        with tf.variable_scope("generator/rev_core_{}".format(ll)):
-            print("layer ", ll)
-            # Reconstruct input.
-            x1, x2 = rev_block(y1, y2, reverse=True)
+        # New version, using single for-loop.
+        nlayers = rev_layers
+        for ll in range(nlayers, 0, -1):
+            with tf.variable_scope("generator/rev_core_{}".format(ll)):
+                print("layer ", ll)
+                # Reconstruct input.
+                x1, x2 = rev_block(y1, y2, reverse=True)
+                # dont go past inputs when computing gradients
+                x1, x2 = tf.stop_gradient(x1), tf.stop_gradient(x2)
 
-            # Rerun the layer, and get gradients.
-            dx1, dx2, w_list, w_grad = _rev_block_grad(
-                x1, x2,
-                dy1, dy2)
+                # Rerun the layer, and get gradients.
+                dx1, dx2, w_list, w_grad = _rev_block_grad(
+                    x1, x2,
+                    dy1, dy2)
 
-            y1, y2, dy1, dy2 = x1, x2, dx1, dx2
+                y1, y2, dy1, dy2 = x1, x2, dx1, dx2
 
-            grads_list.extend(w_grad)
-            vars_list.extend(w_list)
+                grads_list.extend(w_grad)
+                vars_list.extend(w_list)
 
-    _wd_hidden = 0.01
+        _wd_hidden = 0.01
 
-    # Add weight decay.
-    def add_wd(x):
-        g, w = x[0], x[1]
-        assert _wd_hidden > 0.0, "Not applying weight decay"
-        if w.name.endswith("w:0") and _wd_hidden > 0.0:
-            print("Adding weight decay {:.4e} for variable {}".format(
-                _wd_hidden, x[1].name))
-            return g + _wd_hidden * w, w
-        else:
-            return g, w
+        # Add weight decay.
+        def add_wd(x):
+            g, w = x[0], x[1]
+            assert _wd_hidden > 0.0, "Not applying weight decay"
+            if w.name.endswith("w:0") and _wd_hidden > 0.0:
+                print("Adding weight decay {:.4e} for variable {}".format(
+                    _wd_hidden, x[1].name))
+                return g + _wd_hidden * w, w
+            else:
+                return g, w
 
-    # Always gate gradients to avoid unwanted behaviour.
-    return dx1, dx2, list(map(add_wd, zip(tf.tuple(grads_list), vars_list)))
+        # Always gate gradients to avoid unwanted behaviour.
+        return dx1, dx2, list(map(add_wd, zip(grads_list, vars_list)))
 
 
 def generate_revgan_generator(generator_inputs, generator_outputs_channels, rev_layers, ngf=64, dropout_prob=0.5, output_num=1,
@@ -1573,33 +1576,36 @@ def create_revgan_model(inputs, targets, controls, channel_masks, ngf=64, ndf=64
     with tf.name_scope("generator_train"):
         dependencies = [discrim_train]
         with tf.control_dependencies(dependencies):
+            # compute gradients for decoder part
             dec_vars = [var for var in tf.trainable_variables() if var.name.startswith("generator/y_decoder")]
-            dec_grads = tf.gradients(total_loss, dec_vars)
+            rev_out_1_var = tf.get_default_graph().get_tensor_by_name("generator/generator/revnet_output_1:0")
+            rev_out_2_var = tf.get_default_graph().get_tensor_by_name("generator/generator/revnet_output_2:0")
+            dec_grads = tf.gradients(total_loss, [rev_out_1_var, rev_out_2_var] + dec_vars, stop_gradients=[rev_out_1_var, rev_out_2_var])
+            rev_out_1_grad = dec_grads[0]
+            rev_out_2_grad = dec_grads[1]
+            dec_grads = dec_grads[2:]
             dec_grads_and_vars = np.array(list(zip(dec_grads, dec_vars)))
 
-            rev_out_1_var = tf.get_default_graph().get_tensor_by_name("generator/generator/revnet_output_1:0")
-            rev_out_1_grad = tf.gradients(total_loss, rev_out_1_var)
-            rev_out_2_var = tf.get_default_graph().get_tensor_by_name("generator/generator/revnet_output_2:0")
-            rev_out_2_grad = tf.gradients(total_loss, rev_out_2_var)
+            # maual gradients for revnet
             dy1, dy2, rev_grads_and_vars = _compute_revnet_gradients(rev_out_1_var, rev_out_2_var, rev_out_1_grad, rev_out_2_grad, rev_layer_num)
             rev_grads_and_vars = np.array(rev_grads_and_vars)
 
+            # gradients for encoder part
             enc_vars = [var for var in tf.trainable_variables() if var.name.startswith("generator/x_encoder")]
             rev_in_1_var = tf.get_default_graph().get_tensor_by_name("generator/generator/revnet_input_1:0")
             rev_in_2_var = tf.get_default_graph().get_tensor_by_name("generator/generator/revnet_input_2:0")
             enc_grads = tf.gradients([rev_in_1_var, rev_in_2_var], enc_vars, [dy1, dy2])
             enc_grads_and_vars = np.array(list(zip(enc_grads, enc_vars)))
 
+            # combine all gradients in one list
             gen_grads_and_vars = np.concatenate((dec_grads_and_vars, rev_grads_and_vars, enc_grads_and_vars), axis=0)
             gen_grads_and_vars = gen_grads_and_vars.tolist()
 
-
+            # apply gradients to graph
             with tf.variable_scope(tf.get_variable_scope(), reuse=tf.AUTO_REUSE):
                 gen_optim = tf.train.AdamOptimizer(lr, beta1)
                 gen_train = gen_optim.apply_gradients(gen_grads_and_vars)
 
-            # gen_train2 = revnet._train_op
-            # gen_train = tf.group(gen_train1, gen_train2)
     with tf.variable_scope(tf.get_variable_scope(), reuse=tf.AUTO_REUSE):
         ema = tf.train.ExponentialMovingAverage(decay=0.99)
         _losses = [discrim_loss, gen_loss_GAN, gen_loss, gen_loss_SSIM, gen_loss_L2]
