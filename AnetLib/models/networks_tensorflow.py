@@ -13,6 +13,7 @@ import threading
 import scipy
 from PIL import Image
 import time
+from .revnet import ReversibleNet
 # from selu_utils import selu, dropout_selu
 
 EPS = 1e-12
@@ -83,125 +84,6 @@ def conv7x7(batch_input, out_channels, stride):
         padded_input = tf.pad(batch_input, [[0, 0], [3, 3], [3, 3], [0, 0]], mode="CONSTANT")
         conv = tf.nn.conv2d(padded_input, filter, [1, stride, stride, 1], padding="VALID")
         return conv
-
-def def_rev_block_weights(channels):
-    with tf.variable_scope("rev_block"):
-        with tf.variable_scope("f"):
-            with tf.variable_scope("res_block"):
-                with tf.variable_scope("sub_1"):
-                    with tf.variable_scope("conv3x3"):
-                        filter = tf.get_variable("filter", [3, 3, channels, channels], dtype=tf.float32,
-                                                 initializer=tf.random_normal_initializer(0, 0.02))
-                    with tf.variable_scope("batchnorm"):
-                        offset = tf.get_variable("offset", [channels], dtype=tf.float32,
-                                                 initializer=tf.zeros_initializer())
-                        scale = tf.get_variable("scale", [channels], dtype=tf.float32,
-                                                initializer=tf.random_normal_initializer(1.0, 0.02))
-                with tf.variable_scope("sub_2"):
-                    with tf.variable_scope("conv3x3"):
-                        filter = tf.get_variable("filter", [3, 3, channels, channels], dtype=tf.float32,
-                                                 initializer=tf.random_normal_initializer(0, 0.02))
-                    with tf.variable_scope("batchnorm"):
-                        offset = tf.get_variable("offset", [channels], dtype=tf.float32,
-                                                 initializer=tf.zeros_initializer())
-                        scale = tf.get_variable("scale", [channels], dtype=tf.float32,
-                                                initializer=tf.random_normal_initializer(1.0, 0.02))
-        with tf.variable_scope("g"):
-            with tf.variable_scope("res_block"):
-                with tf.variable_scope("sub_1"):
-                    with tf.variable_scope("conv3x3"):
-                        filter = tf.get_variable("filter", [3, 3, channels, channels], dtype=tf.float32,
-                                                 initializer=tf.random_normal_initializer(0, 0.02))
-                    with tf.variable_scope("batchnorm"):
-                        offset = tf.get_variable("offset", [channels], dtype=tf.float32,
-                                                 initializer=tf.zeros_initializer())
-                        scale = tf.get_variable("scale", [channels], dtype=tf.float32,
-                                                initializer=tf.random_normal_initializer(1.0, 0.02))
-                with tf.variable_scope("sub_2"):
-                    with tf.variable_scope("conv3x3"):
-                        filter = tf.get_variable("filter", [3, 3, channels, channels], dtype=tf.float32,
-                                                 initializer=tf.random_normal_initializer(0, 0.02))
-                    with tf.variable_scope("batchnorm"):
-                        offset = tf.get_variable("offset", [channels], dtype=tf.float32,
-                                                 initializer=tf.zeros_initializer())
-                        scale = tf.get_variable("scale", [channels], dtype=tf.float32,
-                                                initializer=tf.random_normal_initializer(1.0, 0.02))
-
-
-def rev_block(in_1, in_2, reverse, weights):
-    #weights_f, weights_g = tf.split(weights, num_or_size_splits=2, axis=1)
-    weights_f = weights[0:6]
-    weights_g = weights[6:12]
-    with tf.variable_scope("rev_block"):
-        if reverse:
-            # x2 = y2 - NN2(y1)
-            with tf.variable_scope("g"):
-                out_2 = in_2 - res_block(in_1, weights_g)
-
-            # x1 = y1 - NN1(x2)
-            with tf.variable_scope("f"):
-                out_1 = in_1 - res_block(out_2, weights_f)
-        else:
-            # y1 = x1 - NN1(x2)
-            with tf.variable_scope("f"):
-                out_1 = in_1 - res_block(in_2, weights_f)
-
-            # y2 = x2 - NN2(y1)
-            with tf.variable_scope("g"):
-                out_2 = in_2 - res_block(out_1, weights_g)
-
-        return [out_1, out_2]
-
-
-def res_block(in_1, weights):
-    with tf.variable_scope("res_block"):
-        #weights_1, weights_2 = tf.split(weights, num_or_size_splits=2, axis=1)
-        weights_1 = weights[0:3]
-        weights_2 = weights[3:6]
-        with tf.variable_scope("sub_1"):
-            out_1 = rev_conv3x3(in_1, tf.squeeze(weights_1[2]))
-            out_1 = rev_batchnorm(out_1, weights_1[0:2])
-            out_1 = lrelu(out_1, 0.2)
-        with tf.variable_scope("sub_2"):
-            out_1 = rev_conv3x3(out_1, tf.squeeze(weights_2[2]))
-            out_1 = rev_batchnorm(out_1, weights_2[0:2])
-            out_1 = out_1 + in_1
-            out_1 = lrelu(out_1, 0.2)
-        return out_1
-
-def rev_conv3x3(batch_input, weight):
-    with tf.variable_scope("conv3x3"):
-        in_channels = batch_input.get_shape()[3]
-        out_channels = in_channels
-        filter = weight
-        padded_in_1 = tf.pad(batch_input, [[0, 0], [1, 1], [1, 1], [0, 0]], mode="CONSTANT")
-        out_1 = tf.nn.conv2d(padded_in_1, filter, [1, 1, 1, 1], padding="VALID")
-        return out_1
-
-def rev_lrelu(x, a):
-    with tf.name_scope("lrelu"):
-        # adding these together creates the leak part and linear part
-        # then cancels them out by subtracting/adding an absolute value term
-        # leak: a*x/2 - a*abs(x)/2
-        # linear: x/2 + abs(x)/2
-
-        # this block looks like it has 2 inputs on the graph unless we do this
-        x = tf.identity(x)
-        return (0.5 * (1 + a)) * x + (0.5 * (1 - a)) * tf.abs(x)
-
-
-def rev_batchnorm(input, weights):
-    with tf.variable_scope("batchnorm"):
-        # this block looks like it has 3 inputs on the graph unless we do this
-        input = tf.identity(input)
-        channels = input.get_shape()[3]
-        offset = weights[0]
-        scale = weights[1]
-        mean, variance = tf.nn.moments(input, axes=[0, 1, 2], keep_dims=False)
-        variance_epsilon = 1e-5
-        normalized = tf.nn.batch_normalization(input, mean, variance, offset, scale, variance_epsilon=variance_epsilon)
-        return normalized
-
 
 def conv3x3(batch_input):
     with tf.variable_scope("conv3x3"):
@@ -465,198 +347,9 @@ def tf_l2_loss(img1, img2):
     diff = tf.square(img1 - img2)
     return tf.reduce_mean(diff)
 
-def _rev_block_grad(x1, x2, dy1, dy2, layer_weights):
-    """Gradients without referring to the stored activation.
-    Args:
-      x1: Input activation 1.
-      x2: Input activation 2.
-      dy1: Output gradient 1.
-      dy2: Output gradient 2.
-    Returns:
-      dx1: Input gradient 1.
-      dx2: Input gradient 2.
-      w: List of variables.
-      dw: List of gradients towards the variables.
-    """
-
-    y1, y2 = rev_block(x1, x2, False, layer_weights)
-
-    # F function weights.
-    """fw_names = []
-    num_layers = 2
-    for ii in range(1, num_layers + 1):
-        fw_names.append("rev_block/f/res_block/sub_{}/batchnorm/offset".format(ii))
-        fw_names.append("rev_block/f/res_block/sub_{}/batchnorm/scale".format(ii))
-        fw_names.append("rev_block/f/res_block/sub_{}/conv3x3/filter".format(ii))
-    fw_list = list(map(lambda x: tf.get_variable(x), fw_names))
-
-    # G function weights.
-    gw_names = []
-    for ii in range(1, num_layers + 1):
-        gw_names.append("rev_block/g/res_block/sub_{}/batchnorm/offset".format(ii))
-        gw_names.append("rev_block/g/res_block/sub_{}/batchnorm/scale".format(ii))
-        gw_names.append("rev_block/g/res_block/sub_{}/conv3x3/filter".format(ii))
-    gw_list = list(map(lambda x: tf.get_variable(x), gw_names))"""
-    fw_list, gw_list = tf.split(layer_weights, num_or_size_splits=2, axis=1)
-
-    dd1 = tf.gradients(y2, [y1] + gw_list, dy2, gate_gradients=True, stop_gradients=[x1, x2, y1])
-    dy2_y1 = dd1[0]
-    dy1_plus = dy2_y1 + dy1
-    dgw = dd1[1:]
-    dd2 = tf.gradients(y1, [x1, x2] + fw_list, dy1_plus, gate_gradients=True, stop_gradients=[x1, x2])
-    dx1 = dd2[0]
-    dx2 = dd2[1]
-    dfw = dd2[2:]
-    dx2 += tf.gradients(x2, x2, dy2, gate_gradients=True, stop_gradients=[x1, x2])[0]
-
-    dw_list = list(dfw) + list(dgw)
-    w_list = list(fw_list) + list(gw_list)
-
-    # Inject dw dependency.
-    with tf.control_dependencies(dw_list):
-        return dx1, dx2, w_list, dw_list
-
-
-def _compute_revnet_gradients(y1, y2, dy1, dy2, rev_layers):
-    """Computes gradients.
-    Args:
-      y1: Output activation 1.
-      y2: Output activation 2.
-      dy1: Output gradient 1.
-      dy2: Output gradient 2.
-    Returns:
-      dx1: Input gradient 1.
-      dx2: Input gradient 2.
-      grads_and_vars: List of tuple of gradients and variables.
-    """
-    with tf.name_scope("manual_gradients"):
-        print("Manually building gradient graph.")
-        g = tf.get_default_graph()
-        tf.get_variable_scope().reuse_variables()
-
-        grads_list = []
-        vars_list = []
-
-        rev_weights = [var for var in tf.trainable_variables() if var.name.startswith("generator/rev_core")]
-        rev_weights.sort(key=lambda x: x.name, reverse=False)
-        print(rev_weights[0].name)
-        print(rev_weights[1].name)
-        print(rev_weights[2].name)
-        weights_per_layer = 12
-
-        weights = tf.TensorArray(dtype=tf.float32, size=len(rev_weights), dynamic_size=False, clear_after_read=False,
-                                 infer_shape=False)
-        weights_grads = tf.TensorArray(dtype=tf.float32, size=len(rev_weights), dynamic_size=False, clear_after_read=False,
-                                 infer_shape=False)
-
-        for i in range(len(rev_weights)):
-            weights = weights.write(i, rev_weights[i])
-
-        layer_count = rev_layers
-
-        outputs = (y1, y2)
-        output_grads = (dy1, dy2)
-
-
-        def loop_body(layer_index, outputs, output_grads, weights, weights_grads):
-            layer_weights_tensor_1 = weights.gather(tf.range(layer_index * weights_per_layer, (layer_index + 1) * weights_per_layer, 3))
-            layer_weights_tensor_2 = weights.gather(tf.range(layer_index * weights_per_layer + 1, (layer_index + 1) * weights_per_layer, 3))
-            layer_weights_tensor_3 = weights.gather(tf.range(layer_index * weights_per_layer + 2, (layer_index + 1) * weights_per_layer, 3))
-            layer_weights_1 = tf.split(layer_weights_tensor_1, 4)
-            layer_weights_2 = tf.split(layer_weights_tensor_2, 4)
-            layer_weights_3 = tf.split(layer_weights_tensor_3, 4)
-            layer_weights = []
-            for i in range(4):
-                layer_weights.append(layer_weights_1[i])
-                layer_weights.append(layer_weights_2[i])
-                layer_weights.append(layer_weights_3[i])
-
-            (inputs, input_grads ,layer_weights_grads) = backprop_layer(outputs, output_grads , layer_weights)
-
-            layer_grads_1 = []
-            layer_grads_2 = []
-            layer_grads_3 = []
-
-            print(len(layer_weights_grads[0]))
-            print(len(layer_weights_grads[1]))
-            layer_weights_grads = layer_weights_grads[0] + layer_weights_grads[1]
-
-            for i in range(4):
-                layer_grads_1.append(layer_weights_grads[i * 3 + 0])
-                layer_grads_2.append(layer_weights_grads[i * 3 + 1])
-                layer_grads_3.append(layer_weights_grads[i * 3 + 2])
-
-            layer_grads_tensor_1 = tf.squeeze(tf.stack(layer_grads_1, axis=0))
-            layer_grads_tensor_2 = tf.squeeze(tf.stack(layer_grads_2, axis=0))
-            layer_grads_tensor_3 = tf.squeeze(tf.stack(layer_grads_3, axis=0))
-
-            weights_grads = weights_grads.scatter(tf.range(layer_index * weights_per_layer + 0, (layer_index + 1) * weights_per_layer, 3), layer_grads_tensor_1)
-            weights_grads = weights_grads.scatter(tf.range(layer_index * weights_per_layer + 1, (layer_index + 1) * weights_per_layer, 3), layer_grads_tensor_2)
-            weights_grads = weights_grads.scatter(tf.range(layer_index * weights_per_layer + 2, (layer_index + 1) * weights_per_layer, 3), layer_grads_tensor_3)
-
-            #weights_grads = weights_grads.scatter(tf.range(layer_index * weights_per_layer ,(layer_index + 1) * weights_per_layer), layer_weights_grads)
-            print(output_grads[0].get_shape())
-            print(input_grads[0].get_shape())
-            print(outputs[0].get_shape())
-            print(inputs[0].get_shape())
-            inputs[1].set_shape(outputs[1].get_shape())
-            inputs[0].set_shape(outputs[0].get_shape())
-            input_grads[1].set_shape(output_grads[1].get_shape())
-            input_grads[0].set_shape(output_grads[0].get_shape())
-            return [layer_index - 1, inputs, input_grads, weights, weights_grads]
-
-        _, inputs, input_grads , _,weights_grads = tf.while_loop(lambda i,*_: i >= 0, loop_body, [tf.constant(layer_count - 1), outputs, output_grads , weights, weights_grads], parallel_iterations=1, back_prop=False)
-
-        for i in range(len(rev_weights)):
-            vars_list.append(weights.read(index=i))
-            grads_list.append(weights_grads.read(index=i))
-
-        return input_grads, list(zip(grads_list, rev_weights))
-
-        # Always gate gradients to avoid unwanted behaviour.
-        #return dy1, dy2, list(map(add_wd, zip(grads_list, vars_list)))
-
-
-def backprop_layer (outputs , output_grads , layer_weights):
-
-    # First , reverse the layer to r e t r i e v e inputs
-    y1 , y2 = outputs[0], outputs[1]
-    #F_weights , G_weights = tf.split(layer_weights, num_or_size_splits=2, axis=1)
-    F_weights = layer_weights[0:6]
-    G_weights = layer_weights[6:12]
-
-    with tf.variable_scope("rev_block"):
-        z1_stop = tf.stop_gradient(y1)
-        with tf.variable_scope("g"):
-            G_z1 = res_block(z1_stop, G_weights )
-            x2 = y2 - G_z1
-            x2_stop = tf. stop_gradient (x2)
-        with tf.variable_scope("f"):
-            F_x2 = res_block(x2_stop, F_weights )
-            x1 = y1 - F_x2
-            x1_stop = tf. stop_gradient(x1)
-
-    y1_grad = output_grads[0]
-    y2_grad = output_grads[1]
-    z1 = x1_stop + F_x2
-    y2 = x2_stop + G_z1
-    y1 = z1
-
-    z1_grad = tf. gradients (y2 , z1_stop , y2_grad ) + y1_grad
-    x2_grad = tf. gradients (y1 , x2_stop , z1_grad ) + y2_grad
-    x1_grad = z1_grad
-    G_grads = tf. gradients (y2 , G_weights , y2_grad )
-    F_grads = tf. gradients (y1 , F_weights , z1_grad )
-
-    inputs = (x1_stop , x2_stop )
-    input_grads = (tf.squeeze(x1_grad, axis=0) , tf.squeeze(x2_grad, axis=0) )
-    weight_grads = (F_grads , G_grads)
-    return inputs , input_grads , weight_grads
-
-
-def generate_revgan_generator(generator_inputs, generator_outputs_channels, rev_layers, ngf=64, dropout_prob=0.5, output_num=1,
-                              activation=tf.tanh, use_resize_conv=False, lr_inputs=None, lr_pos=0):
+def generate_revgan_x_encoder(generator_inputs, ngf=64, lr_inputs=None, lr_pos=0):
     layers = []
+    print("x_encoder")
     print(generator_inputs.shape)
     # encoder_1: [batch, 256, 256, in_channels] => [batch, 256, 256, ngf]
     with tf.variable_scope("x_encoder_1"):
@@ -687,72 +380,112 @@ def generate_revgan_generator(generator_inputs, generator_outputs_channels, rev_
             else:
                 layers.append(output)
         print(output.shape)
+    return output
 
+def generate_revgan_y_encoder(generator_inputs, ngf=64, lr_inputs=None, lr_pos=0):
+    layers = []
+    print("y_encoder")
+    print(generator_inputs.shape)
+    # encoder_1: [batch, 512, 512, in_channels] => [batch, 512, 512, ngf]
+    with tf.variable_scope("y_encoder_1"):
+        if lr_inputs is not None and lr_pos == 0:
+            generator_inputs = tf.concat([generator_inputs, lr_inputs], axis=3)
+        convolved = conv7x7(generator_inputs, ngf, stride=1)
+        output = batchnorm(convolved)
+        output = lrelu(output, 0.2)
+        if lr_inputs is not None and lr_pos == 1:
+            layers.append(tf.concat([lr_inputs, output], axis=3))
+        else:
+            layers.append(output)
+    print(output.shape)
+    layer_specs = [
+        ngf * 2,  # encoder_2: [batch, 256, 256, ngf] => [batch, 128, 128, ngf * 2]
+        ngf * 4,  # encoder_3: [batch, 128, 128, ngf * 2] => [batch, 64, 64, ngf * 4]
+    ]
 
-    in_1, in_2 = tf.split(layers[-1], num_or_size_splits=2, axis=3)
-    in_1 = tf.identity(in_1, name="revnet_input_1")
-    in_2 = tf.identity(in_2, name="revnet_input_2")
-    layers.append([in_1, in_2])
-    rev_block_num = rev_layers
+    for out_channels in layer_specs:
+        with tf.variable_scope("y_encoder_%d" % (len(layers) + 1)):
 
-    for i in range(rev_block_num):
-        with tf.variable_scope("rev_core_%03d" % (i + 1)):
             # [batch, in_height, in_width, in_channels] => [batch, in_height/2, in_width/2, out_channels]
-            def_rev_block_weights(layer_specs[-1]/2)
+            convolved = conv(layers[-1], out_channels, stride=2)
+            output = batchnorm(convolved)
+            output = lrelu(output, 0.2)
+            if lr_inputs is not None and lr_pos == len(layers) + 1:
+                layers.append(tf.concat([lr_inputs, output], axis=3))
+            else:
+                layers.append(output)
+        print(output.shape)
+    return output
 
-    rev_weights = [var for var in tf.trainable_variables() if var.name.startswith("generator/rev_core")]
-    rev_weights.sort(key=lambda x: x.name)
-    weights_per_layer = 12
 
-    ta = tf.TensorArray(dtype=tf.float32, size=len(rev_weights), dynamic_size=False, clear_after_read=False, infer_shape=False)
+def generate_revgan_x_decoder(generator_inputs, generator_outputs_channels, ngf=64, output_num=1,
+                              activation=tf.tanh, use_resize_conv=False):
 
-    for i in range(len(rev_weights)):
-        ta = ta.write(i, rev_weights[i])
-
-    def loop_body(layer_index, input, weights):
-        # [batch, in_height, in_width, in_channels] => [batch, in_height/2, in_width/2, out_channels]
-        layer_weights_tensor_1 = weights.gather(tf.range(layer_index * weights_per_layer, (layer_index + 1) * weights_per_layer, 3))
-        layer_weights_tensor_2 = weights.gather(tf.range(layer_index * weights_per_layer + 1, (layer_index + 1) * weights_per_layer, 3))
-        layer_weights_tensor_3 = weights.gather(tf.range(layer_index * weights_per_layer + 2, (layer_index + 1) * weights_per_layer, 3))
-        layer_weights_1 = tf.split(layer_weights_tensor_1, 4)
-        layer_weights_2 = tf.split(layer_weights_tensor_2, 4)
-        layer_weights_3 = tf.split(layer_weights_tensor_3, 4)
-        layer_weights = []
-        for i in range(4):
-            layer_weights.append(layer_weights_1[i])
-            layer_weights.append(layer_weights_2[i])
-            layer_weights.append(layer_weights_3[i])
-        #layer_weights = layer_weights_1 + layer_weights_2 + layer_weights_3
-        in_1, in_2 = input
-        out_1, out_2 = rev_block(in_1, in_2, False, layer_weights)
-        out_1.set_shape(in_1.get_shape())
-        out_2.set_shape(in_1.get_shape())
-        output = [out_1, out_2]
-
-        #layers.append(output)
-        return [layer_index + 1, output, weights]
-
-    _, layer_rev_out, ta = tf.while_loop(lambda i, _, __ : i < rev_layers, loop_body, loop_vars=[tf.constant(0), layers[-1], ta],
-                              parallel_iterations=1, back_prop=False)
-
-    layers.append(layer_rev_out)
-
-    '''for i in range(rev_block_num):
-        with tf.variable_scope("rev_core_%d" % (i + 1)):
-            # [batch, in_height, in_width, in_channels] => [batch, in_height/2, in_width/2, out_channels]
-            in_1, in_2 = layers[-1]
-            out_1, out_2 = rev_block(in_1, in_2, reverse=False)
-            output = [out_1, out_2]
-
-            layers.append(output)'''
-    out_1, out_2 = layers[-1]
-    out_1 = tf.identity(out_1, name="revnet_output_1")
-    out_2 = tf.identity(out_2, name="revnet_output_2")
-    layers.append(tf.concat([out_1, out_2], 3))
+    print("x_decoder")
+    print(generator_inputs.shape)
+    layers = []
+    layers.append(generator_inputs)
 
     layer_specs = [
-        (ngf * 2, dropout_prob),  # decoder_3: [batch, 32, 32, ngf * 4 * 2] => [batch, 64, 64, ngf * 2 * 2]
-        (ngf, None),  # decoder_2: [batch, 64, 64, ngf * 2 * 2] => [batch, 128, 128, ngf * 2]
+        (ngf * 2, None),  # decoder_3: [batch, 128, 128, ngf * 4] => [batch, 256, 256, ngf * 2]
+        (ngf, None),  # decoder_2: [batch, 256, 256, ngf * 2] => [batch, 512, 512, ngf]
+    ]
+
+    for decoder_layer, (out_channels, dropout) in enumerate(layer_specs):
+        with tf.variable_scope("x_decoder_%d" % (decoder_layer + 1)):
+
+            input = layers[-1]
+
+            rectified = tf.nn.relu(input)
+            # [batch, in_height, in_width, in_channels] => [batch, in_height*2, in_width*2, out_channels]
+            if use_resize_conv:
+                output = resizeconv(rectified, out_channels)
+            else:
+                output = deconv(rectified, out_channels)
+            output = batchnorm(output)
+
+            if dropout is not None:
+                output = tf.nn.dropout(output, keep_prob=1 - dropout)
+
+            print(output.shape)
+            layers.append(output)
+
+    if output_num == 1:
+        # decoder_1: [batch, 128, 128, ngf * 2] => [batch, 256, 256, generator_outputs_channels]
+        with tf.variable_scope("x_decoder_%d" % (len(layer_specs) + 1)):
+            input = layers[-1]
+            rectified = tf.nn.relu(input)
+            output = conv7x7(rectified, generator_outputs_channels, stride=1)
+            if activation:
+                output = activation(output)
+            layers.append(output)
+        print(output.shape)
+        return output
+    else:
+        layer_1 = layers[-1]
+        outputs = []
+        for i in range(output_num):
+            # decoder_1: [batch, 128, 128, ngf * 2] => [batch, 256, 256, generator_outputs_channels]
+            with tf.variable_scope("x_decoder_%d" % (len(layer_specs) + 1) + str(i)):
+                input = layer_1
+                rectified = tf.nn.relu(input)
+                output = conv7x7(rectified, generator_outputs_channels, stride=1)
+                if activation:
+                    output = activation(output)
+                outputs.append(output)
+        outputs = tuple(outputs)
+        return outputs
+
+def generate_revgan_y_decoder(generator_inputs, generator_outputs_channels, ngf=64, output_num=1,
+                              activation=tf.tanh, use_resize_conv=False):
+    print("y_decoder")
+    print(generator_inputs.shape)
+    layers = []
+    layers.append(generator_inputs)
+
+    layer_specs = [
+        (ngf * 2, None),  # decoder_3: [batch, 128, 128, ngf * 4] => [batch, 256, 256, ngf * 2]
+        (ngf, None),  # decoder_2: [batch, 256, 256, ngf * 2] => [batch, 512, 512, ngf]
     ]
 
     for decoder_layer, (out_channels, dropout) in enumerate(layer_specs):
@@ -771,6 +504,7 @@ def generate_revgan_generator(generator_inputs, generator_outputs_channels, rev_
             if dropout is not None:
                 output = tf.nn.dropout(output, keep_prob=1 - dropout)
 
+            print(output.shape)
             layers.append(output)
 
     if output_num == 1:
@@ -782,6 +516,7 @@ def generate_revgan_generator(generator_inputs, generator_outputs_channels, rev_
             if activation:
                 output = activation(output)
             layers.append(output)
+        print(output.shape)
         return output
     else:
         layer_1 = layers[-1]
@@ -797,6 +532,35 @@ def generate_revgan_generator(generator_inputs, generator_outputs_channels, rev_
                 outputs.append(output)
         outputs = tuple(outputs)
         return outputs
+
+
+def generate_revgan_generator(generator_inputs, generator_outputs_channels, revnet, ngf=64, dropout_prob=0.5, output_num=1,
+                              activation=tf.tanh, use_resize_conv=False, lr_inputs=None, lr_pos=0):
+    print("forward generator")
+    layers = []
+    enc_output = generate_revgan_x_encoder(generator_inputs, ngf, lr_inputs, lr_pos)
+    layers.append(enc_output)
+
+    in_1, in_2 = tf.split(layers[-1], num_or_size_splits=2, axis=3)
+    in_1 = tf.identity(in_1, name="revnet_input_1")
+    in_2 = tf.identity(in_2, name="revnet_input_2")
+    layers.append((in_1, in_2))
+
+    revnet_input = (in_1, in_2)
+
+    revnet_output = revnet.forward_pass(revnet_input)
+
+    layers.append(revnet_output)
+
+    out_1, out_2 = layers[-1]
+    out_1 = tf.identity(out_1, name="revnet_output_1")
+    out_2 = tf.identity(out_2, name="revnet_output_2")
+    layers.append(tf.concat([out_1, out_2], 3))
+
+    dec_input = layers[-1]
+    dec_output = generate_revgan_y_decoder(dec_input, generator_outputs_channels, ngf, output_num, activation, use_resize_conv)
+
+    return dec_output
 
 
 def generate_unet(generator_inputs, generator_outputs_channels, ngf=64, bayesian_dropout=False, dropout_prob=0.5, output_num=1, activation=tf.tanh, use_resize_conv=False, lr_inputs=None, lr_pos=0):
@@ -1577,6 +1341,7 @@ def create_revgan_model(inputs, targets, controls, channel_masks, ngf=64, ndf=64
     with tf.name_scope("generator"):
         with tf.variable_scope("generator") as scope:
             out_channels = int(targets.get_shape()[-1])
+            revnet = ReversibleNet(rev_layer_num, 128)
             if use_punet:
                 assert control_nc > 0
                 if control_classes is not None and control_classes > 0:
@@ -1612,7 +1377,7 @@ def create_revgan_model(inputs, targets, controls, channel_masks, ngf=64, ndf=64
             if output_uncertainty:
                 output_num = 2
 
-                outputs, log_sigma_square = generate_revgan_generator(inputs, out_channels, rev_layer_num, ngf,
+                outputs, log_sigma_square = generate_revgan_generator(inputs, out_channels, revnet, ngf,
                                                                       dropout_prob=dropout_prob, output_num=output_num,
                                                                       activation=None, use_resize_conv=use_resize_conv)
                 # apply activation
@@ -1621,7 +1386,7 @@ def create_revgan_model(inputs, targets, controls, channel_masks, ngf=64, ndf=64
             else:
                 output_num = 1
 
-                outputs = generate_revgan_generator(inputs, out_channels, rev_layer_num, ngf,
+                outputs = generate_revgan_generator(inputs, out_channels, revnet, ngf,
                                                     dropout_prob=dropout_prob, output_num=output_num,
                                                     use_resize_conv=use_resize_conv)
                 sigma = None
@@ -1791,11 +1556,9 @@ def create_revgan_model(inputs, targets, controls, channel_masks, ngf=64, ndf=64
             dec_grads = dec_grads[2:]
             dec_grads_and_vars = np.array(list(zip(dec_grads, dec_vars)))
 
-            # maual gradients for revnet
-            (dy1, dy2), rev_grads_and_vars = _compute_revnet_gradients(rev_out_1_var, rev_out_2_var, rev_out_1_grad, rev_out_2_grad, rev_layer_num)
+            # manual gradients for revnet
+            (dy1, dy2), rev_grads_and_vars = revnet.compute_revnet_gradients_of_forward_pass(rev_out_1_var, rev_out_2_var, rev_out_1_grad, rev_out_2_grad)
             rev_grads_and_vars = np.array(rev_grads_and_vars)
-            print(rev_grads_and_vars)
-            print(dec_grads_and_vars)
 
             # gradients for encoder part
             enc_vars = [var for var in tf.trainable_variables() if var.name.startswith("generator/x_encoder")]
