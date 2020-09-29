@@ -24,7 +24,6 @@ class ReversibleNet():
         print(inputs[0].shape)
         print(inputs[1].shape)
 
-
         def loop_body(layer_index, inputs, weights):
             layer_weights = []
             for i in range(self.weights_per_layer):

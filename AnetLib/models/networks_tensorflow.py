@@ -419,7 +419,7 @@ def generate_revgan_y_encoder(generator_inputs, ngf=64, lr_inputs=None, lr_pos=0
 
 
 def generate_revgan_x_decoder(generator_inputs, generator_outputs_channels, ngf=64, output_num=1,
-                              activation=tf.tanh, use_resize_conv=False):
+                              activation=tf.tanh, use_resize_conv=False, lr_nc=0, lr_pos=0):
 
     print("x_decoder")
     print(generator_inputs.shape)
@@ -437,6 +437,10 @@ def generate_revgan_x_decoder(generator_inputs, generator_outputs_channels, ngf=
             input = layers[-1]
 
             rectified = tf.nn.relu(input)
+
+            if lr_nc > 0 and lr_pos == len(layer_specs) - decoder_layer:
+                lr_output = conv7x7(rectified, lr_nc, stride=1)
+
             # [batch, in_height, in_width, in_channels] => [batch, in_height*2, in_width*2, out_channels]
             if use_resize_conv:
                 output = resizeconv(rectified, out_channels)
@@ -449,6 +453,10 @@ def generate_revgan_x_decoder(generator_inputs, generator_outputs_channels, ngf=
 
             print(output.shape)
             layers.append(output)
+
+    with tf.variable_scope("x_decoder_%d" % (len(layer_specs) + 1)):
+        if lr_nc > 0 and lr_pos == 0:
+            lr_output = conv7x7(rectified, lr_nc, stride=1)
 
     if output_num == 1:
         # decoder_1: [batch, 128, 128, ngf * 2] => [batch, 256, 256, generator_outputs_channels]
@@ -477,7 +485,7 @@ def generate_revgan_x_decoder(generator_inputs, generator_outputs_channels, ngf=
         return outputs
 
 def generate_revgan_y_decoder(generator_inputs, generator_outputs_channels, ngf=64, output_num=1,
-                              activation=tf.tanh, use_resize_conv=False):
+                              activation=tf.tanh, use_resize_conv=False, lr_nc=0, lr_pos=0):
     print("y_decoder")
     print(generator_inputs.shape)
     layers = []
@@ -494,6 +502,10 @@ def generate_revgan_y_decoder(generator_inputs, generator_outputs_channels, ngf=
             input = layers[-1]
 
             rectified = tf.nn.relu(input)
+
+            if lr_nc > 0 and lr_pos == len(layer_specs) - decoder_layer:
+                lr_output = conv7x7(rectified, lr_nc, stride=1)
+
             # [batch, in_height, in_width, in_channels] => [batch, in_height*2, in_width*2, out_channels]
             if use_resize_conv:
                 output = resizeconv(rectified, out_channels)
@@ -507,6 +519,10 @@ def generate_revgan_y_decoder(generator_inputs, generator_outputs_channels, ngf=
             print(output.shape)
             layers.append(output)
 
+    with tf.variable_scope("x_decoder_%d" % (len(layer_specs) + 1)):
+        if lr_nc > 0 and lr_pos == 0:
+            lr_output = conv7x7(rectified, lr_nc, stride=1)
+
     if output_num == 1:
         # decoder_1: [batch, 128, 128, ngf * 2] => [batch, 256, 256, generator_outputs_channels]
         with tf.variable_scope("y_decoder_%d" % (len(layer_specs) + 1)):
@@ -517,7 +533,10 @@ def generate_revgan_y_decoder(generator_inputs, generator_outputs_channels, ngf=
                 output = activation(output)
             layers.append(output)
         print(output.shape)
-        return output
+        if(lr_output is not None):
+            return output, lr_output
+        else:
+            return output, None
     else:
         layer_1 = layers[-1]
         outputs = []
@@ -531,7 +550,22 @@ def generate_revgan_y_decoder(generator_inputs, generator_outputs_channels, ngf=
                     output = activation(output)
                 outputs.append(output)
         outputs = tuple(outputs)
-        return outputs
+        if (lr_output is not None):
+            return output, lr_output
+        else:
+            return outputs, None
+
+def generate_revgan_x_autoencoder(generator_inputs, generator_outputs_channels, revnet, ngf=64, dropout_prob=0.5, output_num=1,
+                              activation=tf.tanh, use_resize_conv=False, lr_inputs=None, lr_pos=0):
+    print("x autoencoder generator")
+    layers = []
+    enc_output = generate_revgan_x_encoder(generator_inputs, ngf, lr_inputs, lr_pos)
+    layers.append(enc_output)
+
+    dec_input = layers[-1]
+    dec_output = generate_revgan_x_decoder(dec_input, generator_outputs_channels, ngf, output_num, activation, use_resize_conv)
+
+    return dec_output
 
 
 def generate_revgan_generator(generator_inputs, generator_outputs_channels, revnet, ngf=64, dropout_prob=0.5, output_num=1,
