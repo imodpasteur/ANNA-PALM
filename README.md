@@ -109,6 +109,9 @@ tensorboard --logdir=./
 ```
 Then you can open your browser, and go to http://localhost:6006 to see the loss and outputs etc. At the begining, you will only see the A-net graph. As the training goes, you will see a tab with loss curve etc.
 
+## Pretrained models
+
+Here you can find 3 pretrained models: https://www.dropbox.com/sh/dc5l64n7apsgjdo/AABWH9PpfPHAzpbG8zwalIHZa?dl=0
 
 ## Do prediction with trained model
 Specify the trained model directory with `load_dir` and use `phase=test` to switch to testing mode.
