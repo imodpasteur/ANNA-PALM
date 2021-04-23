@@ -26,13 +26,33 @@ opt.add_lr_channel = False
 opt.use_random_channel_mask = False
 opt.lr_loss_mode = 'lr_predict'
 
-opt.input_channels = 'em=EM.png'
-opt.output_channels = 'mask=Mask.png'
+# assuming we have the following data with 2ch as input and 1 channel as output
+# ├─ data_for_training/
+# │  ├─ train/
+# │  │  ├─ img1
+# │  │  │  ├─ input_channel1.png
+# │  │  │  ├─ input_channel2.png
+# │  │  │  ├─ target_channel1.png
+# │  │  ├─ img2
+# │  │  │  ├─ input_channel1.png
+# │  │  │  ├─ input_channel2.png
+# │  │  │  ├─ target_channel1.png
+# │  │  ...
+# │  ├─ test/
+# │  │  ├─ img57
+# │  │  │  ├─ input_channel1.png
+# │  │  │  ├─ input_channel2.png
+# │  │  │  ├─ target_channel1.png
+# │  │  ├─ img58
+# │  │  │  ├─ input_channel1.png
+# │  │  │  ├─ input_channel2.png
+# │  │  │  ├─ target_channel1.png
+
+opt.input_channels = 'input_channel1=input_channel1.png,input_channel1=input_channel1.png'
+opt.output_channels = 'target_channel1=target_channel1.png'
 opt.input_nc = len(opt.input_channels.split(','))
 opt.output_nc = len(opt.output_channels.split(','))
 
-# opt.input_channels = [('cell', {'filter':'cells*.png', 'loader':ImageLoader()})]
-# opt.output_channels = [('mask', {'filter':'mask_edge*.png', 'loader':ImageLoader()})]
 
 if opt.phase == 'train':
     sources = create_data_sources('GenericTransformedImages', opt)
